@@ -1,36 +1,45 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# VidPortal
 
-## Getting Started
+Video-first client portal for production agencies. The current MVP includes a polished agency dashboard, login-ready UI, project search and status overview, project intake modal, a PostgreSQL Prisma schema, and initial API route contracts.
 
-First, run the development server:
+## Run locally
 
-```bash
+```powershell
+Copy-Item .env.example .env
+npm install
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open `http://localhost:3000`.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Database
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+Start PostgreSQL and set `DATABASE_URL` in `.env`, then run:
 
-## Learn More
+```powershell
+npx prisma validate
+npx prisma migrate dev --name init
+npx prisma generate
+```
 
-To learn more about Next.js, take a look at the following resources:
+Redis, S3/R2, Stripe, FFmpeg, and ClamAV are intentionally represented as environment boundaries in this first slice. They should be added behind service modules before production launch.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## API map
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+- `POST /api/auth/login` accepts `email` and `password` and returns a short-lived JWT-shaped access token in the MVP adapter.
+- `GET /api/health` returns service health.
+- `GET /api/projects` is the agency-scoped project listing boundary.
+- `POST /api/projects` validates the minimum intake payload: `name` and `clientId`.
 
-## Deploy on Vercel
+## Structure
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+- `src/app/page.tsx`: interactive dashboard and demo login experience
+- `src/app/globals.css`: responsive visual system
+- `src/app/api`: App Router API endpoints
+- `src/lib/auth.ts`: JWT token helpers
+- `prisma/schema.prisma`: agency, RBAC, project, file, feedback, invoice, intake, session, and audit models
+- `.env.example`: local configuration template
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## Production hardening still required
+
+Connect the route handlers to Prisma, hash passwords with bcrypt, store refresh tokens in secure httpOnly cookies, add request schemas and rate limiting, scope every query by `agencyId`, add object-storage multipart uploads, and add email/Stripe/FFmpeg workers. The schema is designed to support those additions without changing the dashboard contract.

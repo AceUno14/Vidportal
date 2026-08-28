@@ -1,0 +1,171 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum Role {
+  ADMIN
+  STAFF
+  CLIENT
+}
+
+enum ProjectStatus {
+  BRIEFING
+  IN_PROGRESS
+  CLIENT_REVIEW
+  REVISIONS
+  FINAL_DELIVERY
+  COMPLETED
+}
+
+enum FileKind {
+  VIDEO
+  IMAGE
+  DOCUMENT
+  OTHER
+}
+
+enum InvoiceStatus {
+  DRAFT
+  SENT
+  PAID
+  OVERDUE
+}
+
+model Agency {
+  id            String       @id @default(cuid())
+  name          String
+  slug          String       @unique
+  logoUrl       String?
+  primaryColor  String       @default("#f06e5b")
+  users         User[]
+  clients       Client[]
+  projects      Project[]
+  forms         IntakeForm[]
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+}
+
+model User {
+  id           String     @id @default(cuid())
+  agencyId     String
+  agency       Agency     @relation(fields: [agencyId], references: [id], onDelete: Cascade)
+  email        String     @unique
+  name         String
+  passwordHash String
+  role         Role       @default(STAFF)
+  clientId     String?
+  client       Client?    @relation(fields: [clientId], references: [id])
+  avatarUrl    String?
+  sessions     Session[]
+  comments     Comment[]
+  activity     Activity[]
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+}
+
+model Client {
+  id        String    @id @default(cuid())
+  agencyId  String
+  agency    Agency    @relation(fields: [agencyId], references: [id], onDelete: Cascade)
+  name      String
+  email     String
+  company   String?
+  projects  Project[]
+  users     User[]
+  createdAt DateTime  @default(now())
+}
+
+model Project {
+  id           String        @id @default(cuid())
+  agencyId     String
+  agency       Agency        @relation(fields: [agencyId], references: [id], onDelete: Cascade)
+  clientId     String
+  client       Client        @relation(fields: [clientId], references: [id])
+  name         String
+  type         String?
+  status       ProjectStatus @default(BRIEFING)
+  deliveryDate DateTime?
+  budgetCents  Int?
+  files        File[]
+  comments     Comment[]
+  invoices     Invoice[]
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+}
+
+model File {
+  id              String   @id @default(cuid())
+  projectId       String
+  project         Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  name            String
+  storageKey      String
+  mimeType        String
+  kind            FileKind
+  sizeBytes       BigInt
+  durationSeconds Float?
+  version         Int      @default(1)
+  createdAt       DateTime @default(now())
+}
+
+model Comment {
+  id                String   @id @default(cuid())
+  projectId         String
+  project           Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  authorId          String
+  author            User     @relation(fields: [authorId], references: [id])
+  body              String
+  timestampSeconds  Float?
+  resolved          Boolean  @default(false)
+  parentId          String?
+  createdAt         DateTime @default(now())
+}
+
+model Invoice {
+  id          String        @id @default(cuid())
+  projectId   String
+  project     Project       @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  number      String        @unique
+  amountCents Int
+  status      InvoiceStatus @default(DRAFT)
+  dueDate     DateTime?
+  paidAt      DateTime?
+  createdAt   DateTime      @default(now())
+}
+
+model IntakeForm {
+  id          String   @id @default(cuid())
+  agencyId    String
+  agency      Agency   @relation(fields: [agencyId], references: [id], onDelete: Cascade)
+  name        String
+  projectType String
+  fields      Json
+  active      Boolean  @default(true)
+  createdAt   DateTime @default(now())
+}
+
+model Session {
+  id               String   @id @default(cuid())
+  userId           String
+  user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  refreshTokenHash String   @unique
+  expiresAt        DateTime
+  createdAt        DateTime @default(now())
+}
+
+model Activity {
+  id         String   @id @default(cuid())
+  agencyId   String
+  userId     String
+  user       User     @relation(fields: [userId], references: [id])
+  action     String
+  entityType String
+  entityId   String
+  metadata   Json?
+  createdAt  DateTime @default(now())
+
+  @@index([agencyId, createdAt])
+}
