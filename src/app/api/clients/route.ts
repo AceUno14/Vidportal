@@ -1,22 +1,10 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { verifyAccessToken } from "@/lib/auth";
-
-function getAuthUser(request: Request) {
-  const authHeader = request.headers.get("authorization");
-  if (!authHeader?.startsWith("Bearer ")) return null;
-
-  const token = authHeader.replace("Bearer ", "");
-
-  try {
-    return verifyAccessToken(token);
-  } catch {
-    return null;
-  }
-}
+import { getAuthUserFromRequest } from "@/lib/auth";
+import { toLegacyClient } from "@/lib/prototype-compat";
 
 export async function GET(request: Request) {
-  const authUser = getAuthUser(request);
+  const authUser = getAuthUserFromRequest(request);
 
   if (!authUser) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
@@ -27,16 +15,24 @@ export async function GET(request: Request) {
   }
 
   const clients = await prisma.client.findMany({
-    where: { agencyId: authUser.agencyId },
-    include: { _count: { select: { projects: true, users: true } } },
+    where: { workspaceId: authUser.workspaceId },
+    include: { _count: { select: { projects: true, memberships: true } } },
     orderBy: { createdAt: "desc" },
   });
 
-  return NextResponse.json({ data: clients });
+  return NextResponse.json({
+    data: clients.map((client) => ({
+      ...toLegacyClient(client),
+      _count: {
+        projects: client._count.projects,
+        users: client._count.memberships,
+      },
+    })),
+  });
 }
 
 export async function POST(request: Request) {
-  const authUser = getAuthUser(request);
+  const authUser = getAuthUserFromRequest(request);
 
   if (!authUser) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
@@ -53,7 +49,7 @@ export async function POST(request: Request) {
   }
 
   const existing = await prisma.client.findFirst({
-    where: { agencyId: authUser.agencyId, email: body.email },
+    where: { workspaceId: authUser.workspaceId, email: body.email },
   });
 
   if (existing) {
@@ -62,12 +58,12 @@ export async function POST(request: Request) {
 
   const client = await prisma.client.create({
     data: {
-      agencyId: authUser.agencyId,
+      workspaceId: authUser.workspaceId,
       name: body.name,
       email: body.email,
       company: body.company || null,
     },
   });
 
-  return NextResponse.json({ data: client }, { status: 201 });
+  return NextResponse.json({ data: toLegacyClient(client) }, { status: 201 });
 }

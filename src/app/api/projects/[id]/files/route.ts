@@ -2,18 +2,8 @@ import { NextResponse } from "next/server";
 import { mkdir, writeFile } from "fs/promises";
 import path from "path";
 import { prisma } from "@/lib/prisma";
-import { verifyAccessToken } from "@/lib/auth";
-
-function getAuthUser(request: Request) {
-  const authHeader = request.headers.get("authorization");
-  if (!authHeader?.startsWith("Bearer ")) return null;
-  const token = authHeader.replace("Bearer ", "");
-  try {
-    return verifyAccessToken(token);
-  } catch {
-    return null;
-  }
-}
+import { getAuthUserFromRequest } from "@/lib/auth";
+import { toLegacyFileAsset } from "@/lib/prototype-compat";
 
 function kindFromMimeType(mimeType: string): "VIDEO" | "IMAGE" | "DOCUMENT" | "OTHER" {
   if (mimeType.startsWith("video/")) return "VIDEO";
@@ -25,7 +15,7 @@ function kindFromMimeType(mimeType: string): "VIDEO" | "IMAGE" | "DOCUMENT" | "O
 const MAX_SIZE_BYTES = 25 * 1024 * 1024; // 25MB limit for now
 
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
-  const authUser = getAuthUser(request);
+  const authUser = getAuthUserFromRequest(request);
   if (!authUser) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
@@ -35,7 +25,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   const project = await prisma.project.findFirst({
     where: {
       id,
-      agencyId: authUser.agencyId,
+      workspaceId: authUser.workspaceId,
     },
   });
 
@@ -68,23 +58,25 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   const bytes = await file.arrayBuffer();
   await writeFile(filePath, Buffer.from(bytes));
 
-  const savedFile = await prisma.file.create({
+  const savedFile = await prisma.fileAsset.create({
     data: {
+      workspaceId: authUser.workspaceId,
       projectId: id,
-      name: file.name,
+      uploadedByMembershipId: authUser.membershipId,
+      originalFilename: file.name,
       storageKey: publicPath,
-      mimeType: file.type || "application/octet-stream",
+      contentType: file.type || "application/octet-stream",
       kind: kindFromMimeType(file.type || ""),
+      purpose: "ATTACHMENT",
       sizeBytes: BigInt(file.size),
+      status: "READY",
+      verifiedAt: new Date(),
     },
   });
 
   return NextResponse.json(
     {
-      data: {
-        ...savedFile,
-        sizeBytes: savedFile.sizeBytes.toString(),
-      },
+      data: toLegacyFileAsset(savedFile),
     },
     { status: 201 }
   );

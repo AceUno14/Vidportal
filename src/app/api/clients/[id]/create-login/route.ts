@@ -1,25 +1,13 @@
 import { NextResponse } from "next/server";
+import { randomUUID } from "crypto";
 import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/prisma";
-import { verifyAccessToken } from "@/lib/auth";
-
-function getAuthUser(request: Request) {
-  const authHeader = request.headers.get("authorization");
-  if (!authHeader?.startsWith("Bearer ")) return null;
-
-  const token = authHeader.replace("Bearer ", "");
-
-  try {
-    return verifyAccessToken(token);
-  } catch {
-    return null;
-  }
-}
+import { getAuthUserFromRequest } from "@/lib/auth";
 
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
-  const authUser = getAuthUser(request);
+  const authUser = getAuthUserFromRequest(request);
 
-  if (!authUser || authUser.role !== "ADMIN") {
+  if (!authUser || !["OWNER", "ADMIN"].includes(authUser.role)) {
     return NextResponse.json({ error: "only an admin can create client logins" }, { status: 403 });
   }
 
@@ -34,7 +22,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   }
 
   const client = await prisma.client.findFirst({
-    where: { id, agencyId: authUser.agencyId },
+    where: { id, workspaceId: authUser.workspaceId },
   });
 
   if (!client) {
@@ -52,15 +40,26 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
 
   const passwordHash = await bcrypt.hash(body.password, 10);
 
-  const clientUser = await prisma.user.create({
-    data: {
-      agencyId: authUser.agencyId,
-      clientId: client.id,
-      email: client.email,
-      name: client.name,
-      passwordHash,
-      role: "CLIENT",
-    },
+  const clientUser = await prisma.$transaction(async (transaction) => {
+    const user = await transaction.user.create({
+      data: {
+        id: randomUUID(),
+        email: client.email,
+        name: client.name,
+        passwordHash,
+      },
+    });
+
+    await transaction.membership.create({
+      data: {
+        workspaceId: authUser.workspaceId,
+        userId: user.id,
+        clientId: client.id,
+        role: "CLIENT",
+      },
+    });
+
+    return user;
   });
 
   return NextResponse.json(

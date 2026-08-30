@@ -1,19 +1,27 @@
 generator client {
-  provider = "prisma-client-js"
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
 }
 
 datasource db {
   provider = "postgresql"
 }
 
-enum Role {
+enum MembershipRole {
+  OWNER
   ADMIN
-  STAFF
+  MEMBER
   CLIENT
 }
 
+enum MembershipStatus {
+  ACTIVE
+  INACTIVE
+}
+
 enum ProjectStatus {
-  BRIEFING
+  INTAKE
+  READY
   IN_PROGRESS
   CLIENT_REVIEW
   REVISIONS
@@ -21,151 +29,517 @@ enum ProjectStatus {
   COMPLETED
 }
 
+enum IntakeSubmissionStatus {
+  DRAFT
+  SUBMITTED
+}
+
 enum FileKind {
   VIDEO
+  AUDIO
   IMAGE
   DOCUMENT
+  ARCHIVE
   OTHER
 }
 
-enum InvoiceStatus {
-  DRAFT
-  SENT
-  PAID
-  OVERDUE
+enum FilePurpose {
+  SOURCE
+  REFERENCE
+  ATTACHMENT
+  FINAL_DELIVERABLE
 }
 
-model Agency {
-  id            String       @id @default(cuid())
-  name          String
-  slug          String       @unique
-  logoUrl       String?
-  primaryColor  String       @default("#f06e5b")
-  users         User[]
-  clients       Client[]
-  projects      Project[]
-  forms         IntakeForm[]
-  createdAt     DateTime     @default(now())
-  updatedAt     DateTime     @updatedAt
+enum FileVisibility {
+  INTERNAL
+  CLIENT
+  PUBLISHED
+}
+
+enum FileAssetStatus {
+  PENDING
+  READY
+  FAILED
+  ARCHIVED
+  DELETED
+}
+
+enum UploadType {
+  SINGLE_PART
+  MULTIPART
+}
+
+enum UploadStatus {
+  CREATED
+  UPLOADING
+  COMPLETING
+  VERIFYING
+  COMPLETED
+  ABORTED
+  EXPIRED
+  FAILED
+}
+
+enum ReviewVersionStatus {
+  AUTHORIZED
+  UPLOADING
+  PROCESSING
+  READY
+  SUBMITTED
+  FAILED
+  ARCHIVED
+}
+
+enum ApprovalDecision {
+  APPROVED
+  CHANGES_REQUESTED
 }
 
 model User {
-  id           String     @id @default(cuid())
-  agencyId     String
-  agency       Agency     @relation(fields: [agencyId], references: [id], onDelete: Cascade)
-  email        String     @unique
-  name         String
-  passwordHash String
-  role         Role       @default(STAFF)
-  clientId     String?
-  client       Client?    @relation(fields: [clientId], references: [id])
-  avatarUrl    String?
-  sessions     Session[]
-  comments     Comment[]
-  activity     Activity[]
-  createdAt    DateTime   @default(now())
-  updatedAt    DateTime   @updatedAt
+  id            String   @id
+  name          String
+  email         String   @unique
+  emailVerified Boolean  @default(false)
+  image         String?
+  passwordHash  String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  accounts    Account[]
+  sessions    Session[]
+  memberships Membership[]
+
+  @@map("user")
 }
 
-model Client {
-  id        String    @id @default(cuid())
-  agencyId  String
-  agency    Agency    @relation(fields: [agencyId], references: [id], onDelete: Cascade)
-  name      String
-  email     String
-  company   String?
-  projects  Project[]
-  users     User[]
-  createdAt DateTime  @default(now())
-}
+model Account {
+  id                    String    @id
+  userId                String
+  issuer                String
+  accountId             String
+  providerId            String
+  accessToken           String?   @db.Text
+  refreshToken          String?   @db.Text
+  accessTokenExpiresAt  DateTime?
+  refreshTokenExpiresAt DateTime?
+  scope                 String?
+  idToken               String?   @db.Text
+  password              String?   @db.Text
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
 
-model Project {
-  id           String        @id @default(cuid())
-  agencyId     String
-  agency       Agency        @relation(fields: [agencyId], references: [id], onDelete: Cascade)
-  clientId     String
-  client       Client        @relation(fields: [clientId], references: [id])
-  name         String
-  type         String?
-  status       ProjectStatus @default(BRIEFING)
-  deliveryDate DateTime?
-  budgetCents  Int?
-  files        File[]
-  comments     Comment[]
-  invoices     Invoice[]
-  createdAt    DateTime      @default(now())
-  updatedAt    DateTime      @updatedAt
-}
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-model File {
-  id              String   @id @default(cuid())
-  projectId       String
-  project         Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  name            String
-  storageKey      String
-  mimeType        String
-  kind            FileKind
-  sizeBytes       BigInt
-  durationSeconds Float?
-  version         Int      @default(1)
-  createdAt       DateTime @default(now())
-}
-
-model Comment {
-  id                String   @id @default(cuid())
-  projectId         String
-  project           Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  authorId          String
-  author            User     @relation(fields: [authorId], references: [id])
-  body              String
-  timestampSeconds  Float?
-  resolved          Boolean  @default(false)
-  parentId          String?
-  createdAt         DateTime @default(now())
-}
-
-model Invoice {
-  id          String        @id @default(cuid())
-  projectId   String
-  project     Project       @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  number      String        @unique
-  amountCents Int
-  status      InvoiceStatus @default(DRAFT)
-  dueDate     DateTime?
-  paidAt      DateTime?
-  createdAt   DateTime      @default(now())
-}
-
-model IntakeForm {
-  id          String   @id @default(cuid())
-  agencyId    String
-  agency      Agency   @relation(fields: [agencyId], references: [id], onDelete: Cascade)
-  name        String
-  projectType String
-  fields      Json
-  active      Boolean  @default(true)
-  createdAt   DateTime @default(now())
+  @@unique([issuer, accountId])
+  @@index([userId])
+  @@map("account")
 }
 
 model Session {
-  id               String   @id @default(cuid())
-  userId           String
-  user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  refreshTokenHash String   @unique
-  expiresAt        DateTime
-  createdAt        DateTime @default(now())
+  id        String   @id
+  userId    String
+  token     String   @unique
+  expiresAt DateTime
+  ipAddress String?
+  userAgent String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+  @@map("session")
+}
+
+model Verification {
+  id         String   @id
+  identifier String
+  value      String   @db.Text
+  expiresAt  DateTime
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([identifier])
+  @@index([expiresAt])
+  @@map("verification")
+}
+
+model Workspace {
+  id           String    @id @default(cuid())
+  name         String
+  slug         String    @unique
+  logoUrl      String?
+  logoDarkUrl  String?
+  primaryColor String    @default("#f06e5b")
+  accentColor  String    @default("#1f2937")
+  archivedAt   DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  memberships            Membership[]
+  clients                Client[]
+  projects               Project[]
+  projectAssignments     ProjectAssignment[]
+  intakeTemplates        IntakeTemplate[]
+  intakeTemplateVersions IntakeTemplateVersion[]
+  intakeSubmissions      IntakeSubmission[]
+  fileAssets             FileAsset[]
+  uploadSessions         UploadSession[]
+  reviewVersions         ReviewVersion[]
+  comments               Comment[]
+  approvals              Approval[]
+  activities             Activity[]
+}
+
+model Membership {
+  id            String           @id @default(cuid())
+  workspaceId   String
+  userId        String
+  clientId      String?
+  role          MembershipRole
+  status        MembershipStatus @default(ACTIVE)
+  deactivatedAt DateTime?
+  joinedAt      DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Restrict)
+  user      User      @relation(fields: [userId], references: [id], onDelete: Restrict)
+  client    Client?   @relation(fields: [workspaceId, clientId], references: [workspaceId, id], onDelete: Restrict)
+
+  projectAssignments        ProjectAssignment[]     @relation("ProjectAssignee")
+  projectAssignmentsCreated ProjectAssignment[]     @relation("ProjectAssignmentCreator")
+  intakeTemplateVersions    IntakeTemplateVersion[] @relation("IntakeTemplateVersionCreator")
+  intakeSubmissions         IntakeSubmission[]      @relation("IntakeSubmissionSubmitter")
+  uploadedFileAssets        FileAsset[]             @relation("FileAssetUploader")
+  uploadSessions            UploadSession[]         @relation("UploadSessionUploader")
+  reviewVersions            ReviewVersion[]         @relation("ReviewVersionCreator")
+  comments                  Comment[]               @relation("CommentAuthor")
+  commentsResolved          Comment[]               @relation("CommentResolver")
+  approvals                 Approval[]              @relation("ApprovalDecider")
+  activities                Activity[]              @relation("ActivityActor")
+
+  @@unique([workspaceId, userId])
+  @@unique([workspaceId, id])
+  @@index([userId, status])
+  @@index([workspaceId, role, status])
+  @@index([workspaceId, clientId])
+}
+
+model Client {
+  id          String    @id @default(cuid())
+  workspaceId String
+  name        String
+  email       String
+  company     String?
+  archivedAt  DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  workspace   Workspace    @relation(fields: [workspaceId], references: [id], onDelete: Restrict)
+  memberships Membership[]
+  projects    Project[]
+
+  @@unique([workspaceId, id])
+  @@unique([workspaceId, email])
+  @@index([workspaceId, archivedAt])
+}
+
+model Project {
+  id                      String        @id @default(cuid())
+  workspaceId             String
+  clientId                String
+  intakeTemplateVersionId String?
+  name                    String
+  description             String?       @db.Text
+  type                    String?
+  status                  ProjectStatus @default(INTAKE)
+  deliveryDate            DateTime?
+  archivedAt              DateTime?
+  createdAt               DateTime      @default(now())
+  updatedAt               DateTime      @updatedAt
+
+  workspace             Workspace              @relation(fields: [workspaceId], references: [id], onDelete: Restrict)
+  client                Client                 @relation(fields: [workspaceId, clientId], references: [workspaceId, id], onDelete: Restrict)
+  intakeTemplateVersion IntakeTemplateVersion? @relation("ProjectIntakeTemplateVersion", fields: [workspaceId, intakeTemplateVersionId], references: [workspaceId, id], onDelete: Restrict)
+
+  assignments       ProjectAssignment[]
+  intakeSubmissions IntakeSubmission[]
+  fileAssets        FileAsset[]
+  uploadSessions    UploadSession[]
+  reviewVersions    ReviewVersion[]
+  comments          Comment[]
+  approvals         Approval[]
+  activities        Activity[]
+
+  @@unique([workspaceId, id])
+  @@index([workspaceId, status, archivedAt])
+  @@index([workspaceId, clientId, status])
+  @@index([workspaceId, deliveryDate])
+}
+
+model ProjectAssignment {
+  id                     String    @id @default(cuid())
+  workspaceId            String
+  projectId              String
+  membershipId           String
+  assignedByMembershipId String?
+  active                 Boolean   @default(true)
+  removedAt              DateTime?
+  createdAt              DateTime  @default(now())
+  updatedAt              DateTime  @updatedAt
+
+  workspace  Workspace   @relation(fields: [workspaceId], references: [id], onDelete: Restrict)
+  project    Project     @relation(fields: [workspaceId, projectId], references: [workspaceId, id], onDelete: Cascade)
+  membership Membership  @relation("ProjectAssignee", fields: [workspaceId, membershipId], references: [workspaceId, id], onDelete: Restrict)
+  assignedBy Membership? @relation("ProjectAssignmentCreator", fields: [workspaceId, assignedByMembershipId], references: [workspaceId, id], onDelete: Restrict)
+
+  @@unique([workspaceId, projectId, membershipId])
+  @@unique([workspaceId, id])
+  @@index([workspaceId, membershipId, active])
+  @@index([workspaceId, projectId, active])
+}
+
+model IntakeTemplate {
+  id          String    @id @default(cuid())
+  workspaceId String
+  name        String
+  projectType String?
+  active      Boolean   @default(true)
+  archivedAt  DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  workspace Workspace               @relation(fields: [workspaceId], references: [id], onDelete: Restrict)
+  versions  IntakeTemplateVersion[]
+
+  @@unique([workspaceId, id])
+  @@index([workspaceId, active, archivedAt])
+}
+
+model IntakeTemplateVersion {
+  id                    String    @id @default(cuid())
+  workspaceId           String
+  intakeTemplateId      String
+  createdByMembershipId String
+  version               Int
+  definition            Json
+  publishedAt           DateTime?
+  createdAt             DateTime  @default(now())
+
+  workspace        Workspace          @relation(fields: [workspaceId], references: [id], onDelete: Restrict)
+  intakeTemplate   IntakeTemplate     @relation(fields: [workspaceId, intakeTemplateId], references: [workspaceId, id], onDelete: Restrict)
+  createdBy        Membership         @relation("IntakeTemplateVersionCreator", fields: [workspaceId, createdByMembershipId], references: [workspaceId, id], onDelete: Restrict)
+  selectedProjects Project[]          @relation("ProjectIntakeTemplateVersion")
+  submissions      IntakeSubmission[]
+
+  @@unique([workspaceId, id])
+  @@unique([workspaceId, intakeTemplateId, version])
+  @@index([workspaceId, intakeTemplateId, publishedAt])
+}
+
+model IntakeSubmission {
+  id                      String                 @id @default(cuid())
+  workspaceId             String
+  projectId               String
+  intakeTemplateVersionId String
+  submittedByMembershipId String?
+  reopenedFromId          String?
+  status                  IntakeSubmissionStatus @default(DRAFT)
+  sequence                Int
+  definitionSnapshot      Json
+  answers                 Json
+  submittedAt             DateTime?
+  createdAt               DateTime               @default(now())
+
+  workspace             Workspace             @relation(fields: [workspaceId], references: [id], onDelete: Restrict)
+  project               Project               @relation(fields: [workspaceId, projectId], references: [workspaceId, id], onDelete: Restrict)
+  intakeTemplateVersion IntakeTemplateVersion @relation(fields: [workspaceId, intakeTemplateVersionId], references: [workspaceId, id], onDelete: Restrict)
+  submittedBy           Membership?           @relation("IntakeSubmissionSubmitter", fields: [workspaceId, submittedByMembershipId], references: [workspaceId, id], onDelete: Restrict)
+  reopenedFrom          IntakeSubmission?     @relation("ReopenedIntakeSubmission", fields: [workspaceId, projectId, reopenedFromId], references: [workspaceId, projectId, id], onDelete: Restrict)
+  reopenedAs            IntakeSubmission[]    @relation("ReopenedIntakeSubmission")
+
+  @@unique([workspaceId, id])
+  @@unique([workspaceId, projectId, id])
+  @@unique([workspaceId, projectId, sequence])
+  @@index([workspaceId, projectId, submittedAt])
+}
+
+model FileAsset {
+  id                     String          @id @default(cuid())
+  workspaceId            String
+  projectId              String
+  uploadedByMembershipId String
+  originalFilename       String
+  storageKey             String          @unique
+  contentType            String
+  sizeBytes              BigInt
+  kind                   FileKind
+  purpose                FilePurpose
+  visibility             FileVisibility  @default(INTERNAL)
+  status                 FileAssetStatus @default(PENDING)
+  checksum               String?
+  durationSeconds        Float?
+  verifiedAt             DateTime?
+  publishedAt            DateTime?
+  archivedAt             DateTime?
+  deletedAt              DateTime?
+  purgeAfter             DateTime?
+  createdAt              DateTime        @default(now())
+  updatedAt              DateTime        @updatedAt
+
+  workspace  Workspace  @relation(fields: [workspaceId], references: [id], onDelete: Restrict)
+  project    Project    @relation(fields: [workspaceId, projectId], references: [workspaceId, id], onDelete: Restrict)
+  uploadedBy Membership @relation("FileAssetUploader", fields: [workspaceId, uploadedByMembershipId], references: [workspaceId, id], onDelete: Restrict)
+
+  uploadSession        UploadSession?
+  sourceReviewVersions ReviewVersion[] @relation("ReviewVersionSourceFile")
+
+  @@unique([workspaceId, id])
+  @@unique([workspaceId, projectId, id])
+  @@index([workspaceId, projectId, status])
+  @@index([workspaceId, projectId, visibility, status])
+  @@index([status, purgeAfter])
+}
+
+model UploadSession {
+  id                     String       @id @default(cuid())
+  workspaceId            String
+  projectId              String
+  uploadedByMembershipId String
+  fileAssetId            String
+  expectedFilename       String
+  expectedByteSize       BigInt
+  expectedContentType    String
+  storageKey             String       @unique
+  providerUploadId       String?
+  uploadType             UploadType
+  status                 UploadStatus @default(CREATED)
+  expiresAt              DateTime
+  completedAt            DateTime?
+  abortedAt              DateTime?
+  lastReconciledAt       DateTime?
+  createdAt              DateTime     @default(now())
+  updatedAt              DateTime     @updatedAt
+
+  workspace  Workspace  @relation(fields: [workspaceId], references: [id], onDelete: Restrict)
+  project    Project    @relation(fields: [workspaceId, projectId], references: [workspaceId, id], onDelete: Restrict)
+  uploadedBy Membership @relation("UploadSessionUploader", fields: [workspaceId, uploadedByMembershipId], references: [workspaceId, id], onDelete: Restrict)
+  fileAsset  FileAsset  @relation(fields: [workspaceId, projectId, fileAssetId], references: [workspaceId, projectId, id], onDelete: Restrict)
+
+  @@unique([workspaceId, id])
+  @@unique([workspaceId, projectId, fileAssetId])
+  @@unique([workspaceId, providerUploadId])
+  @@index([status, expiresAt])
+  @@index([workspaceId, projectId, status])
+  @@index([workspaceId, uploadedByMembershipId, status])
+}
+
+model ReviewVersion {
+  id                    String              @id @default(cuid())
+  workspaceId           String
+  projectId             String
+  createdByMembershipId String
+  sourceFileAssetId     String?
+  version               Int
+  title                 String?
+  streamUid             String?             @unique
+  declaredFilename      String
+  declaredByteSize      BigInt
+  declaredContentType   String
+  maxDurationSeconds    Int
+  requiresSignedUrls    Boolean             @default(true)
+  status                ReviewVersionStatus @default(AUTHORIZED)
+  durationSeconds       Float?
+  uploadExpiresAt       DateTime?
+  readyAt               DateTime?
+  submittedAt           DateTime?
+  failedAt              DateTime?
+  archivedAt            DateTime?
+  createdAt             DateTime            @default(now())
+  updatedAt             DateTime            @updatedAt
+
+  workspace       Workspace  @relation(fields: [workspaceId], references: [id], onDelete: Restrict)
+  project         Project    @relation(fields: [workspaceId, projectId], references: [workspaceId, id], onDelete: Restrict)
+  createdBy       Membership @relation("ReviewVersionCreator", fields: [workspaceId, createdByMembershipId], references: [workspaceId, id], onDelete: Restrict)
+  sourceFileAsset FileAsset? @relation("ReviewVersionSourceFile", fields: [workspaceId, projectId, sourceFileAssetId], references: [workspaceId, projectId, id], onDelete: Restrict)
+
+  comments  Comment[]
+  approvals Approval[]
+
+  @@unique([workspaceId, id])
+  @@unique([workspaceId, projectId, id])
+  @@unique([workspaceId, projectId, version])
+  @@index([workspaceId, projectId, status])
+}
+
+model Comment {
+  id                     String    @id @default(cuid())
+  workspaceId            String
+  projectId              String
+  reviewVersionId        String
+  authorMembershipId     String
+  resolvedByMembershipId String?
+  parentId               String?
+  body                   String    @db.Text
+  timestampSeconds       Float?
+  resolvedAt             DateTime?
+  createdAt              DateTime  @default(now())
+  updatedAt              DateTime  @updatedAt
+
+  workspace     Workspace     @relation(fields: [workspaceId], references: [id], onDelete: Restrict)
+  project       Project       @relation(fields: [workspaceId, projectId], references: [workspaceId, id], onDelete: Restrict)
+  reviewVersion ReviewVersion @relation(fields: [workspaceId, projectId, reviewVersionId], references: [workspaceId, projectId, id], onDelete: Restrict)
+  author        Membership    @relation("CommentAuthor", fields: [workspaceId, authorMembershipId], references: [workspaceId, id], onDelete: Restrict)
+  resolvedBy    Membership?   @relation("CommentResolver", fields: [workspaceId, resolvedByMembershipId], references: [workspaceId, id], onDelete: Restrict)
+  parent        Comment?      @relation("CommentReplies", fields: [workspaceId, reviewVersionId, parentId], references: [workspaceId, reviewVersionId, id], onDelete: Restrict)
+  replies       Comment[]     @relation("CommentReplies")
+
+  @@unique([workspaceId, id])
+  @@unique([workspaceId, reviewVersionId, id])
+  @@index([workspaceId, reviewVersionId, createdAt])
+  @@index([workspaceId, reviewVersionId, resolvedAt])
+  @@index([workspaceId, projectId, createdAt])
+}
+
+model Approval {
+  id                    String           @id @default(cuid())
+  workspaceId           String
+  projectId             String
+  reviewVersionId       String
+  decidedByMembershipId String
+  decision              ApprovalDecision
+  note                  String?          @db.Text
+  createdAt             DateTime         @default(now())
+
+  workspace     Workspace     @relation(fields: [workspaceId], references: [id], onDelete: Restrict)
+  project       Project       @relation(fields: [workspaceId, projectId], references: [workspaceId, id], onDelete: Restrict)
+  reviewVersion ReviewVersion @relation(fields: [workspaceId, projectId, reviewVersionId], references: [workspaceId, projectId, id], onDelete: Restrict)
+  decidedBy     Membership    @relation("ApprovalDecider", fields: [workspaceId, decidedByMembershipId], references: [workspaceId, id], onDelete: Restrict)
+
+  @@unique([workspaceId, id])
+  @@unique([workspaceId, reviewVersionId])
+  @@index([workspaceId, projectId, createdAt])
 }
 
 model Activity {
-  id         String   @id @default(cuid())
-  agencyId   String
-  userId     String
-  user       User     @relation(fields: [userId], references: [id])
-  action     String
-  entityType String
-  entityId   String
-  metadata   Json?
-  createdAt  DateTime @default(now())
+  id                String   @id @default(cuid())
+  workspaceId       String
+  projectId         String?
+  actorMembershipId String?
+  action            String
+  entityType        String
+  entityId          String
+  metadata          Json?
+  clientVisible     Boolean  @default(false)
+  createdAt         DateTime @default(now())
 
-  @@index([agencyId, createdAt])
+  workspace Workspace   @relation(fields: [workspaceId], references: [id], onDelete: Restrict)
+  project   Project?    @relation(fields: [workspaceId, projectId], references: [workspaceId, id], onDelete: Restrict)
+  actor     Membership? @relation("ActivityActor", fields: [workspaceId, actorMembershipId], references: [workspaceId, id], onDelete: Restrict)
+
+  @@unique([workspaceId, id])
+  @@index([workspaceId, createdAt])
+  @@index([workspaceId, projectId, createdAt])
+  @@index([workspaceId, entityType, entityId])
 }

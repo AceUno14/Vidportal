@@ -1,45 +1,73 @@
 # VidPortal
 
-Video-first client portal for production agencies. The current MVP includes a polished agency dashboard, login-ready UI, project search and status overview, project intake modal, a PostgreSQL Prisma schema, and initial API route contracts.
+VidPortal is a video-first project intake, review, feedback, and delivery portal for agencies, production houses, and freelancers.
 
-## Run locally
+The repository contains a working prototype on the canonical workspace-scoped Prisma model with a Neon runtime adapter and deterministic development seed. Milestones 1–3 are complete. Better Auth, R2 uploads, Stream review, and Resend email remain future milestones and are not claimed as complete.
+
+## Local setup
+
+Prerequisites:
+
+- Node.js 22 or newer
+- A Neon PostgreSQL development database
+
+Create the local environment file and install dependencies:
 
 ```powershell
 Copy-Item .env.example .env
-npm install
+npm ci
+```
+
+Configure Neon's pooled connection as `DATABASE_URL`, its direct connection as `DIRECT_URL`, and a temporary `JWT_SECRET` for the prototype routes. The remaining placeholders document the locked target environment and become active in their implementation milestones.
+
+Generate the client, apply migrations to a disposable development database, seed the canonical dataset, and verify it:
+
+```powershell
+npm run db:generate
+npm run db:validate
+npm run db:migrate
+npm run db:seed
+npm run db:verify
 npm run dev
 ```
 
+The Milestone 3 migration is reset-only for the former prototype model. Do not use a destructive reset against production or irreplaceable data. The current shared development database was reset only after its approved backup was verified.
+
 Open `http://localhost:3000`.
 
-## Database
-
-Start PostgreSQL and set `DATABASE_URL` in `.env`, then run:
+## Verification
 
 ```powershell
-npx prisma validate
-npx prisma migrate dev --name init
-npx prisma generate
+npm run check
+npm run test:e2e -- tests/e2e/health.spec.ts
 ```
 
-Redis, S3/R2, Stripe, FFmpeg, and ClamAV are intentionally represented as environment boundaries in this first slice. They should be added behind service modules before production launch.
+`npm run check` runs lint, TypeScript, Prisma validation, unit/integration tests, and a production build. The Playwright foundation smoke test starts or reuses the application server and verifies `/api/health` without requiring browser binaries.
 
-## API map
+## Current prototype routes
 
-- `POST /api/auth/login` accepts `email` and `password` and returns a short-lived JWT-shaped access token in the MVP adapter.
-- `GET /api/health` returns service health.
-- `GET /api/projects` is the agency-scoped project listing boundary.
-- `POST /api/projects` validates the minimum intake payload: `name` and `clientId`.
+- `/`: agency dashboard and project creation
+- `/login`: prototype login and signup
+- `/clients`: client management
+- `/projects/[id]`: project detail and prototype file management
+- `/api/health`: service health
+- `/api/auth/*`: temporary JWT authentication routes
+- `/api/clients/*`: client routes
+- `/api/projects/*`: project and file routes
 
-## Structure
+## Architecture documentation
 
-- `src/app/page.tsx`: interactive dashboard and demo login experience
-- `src/app/globals.css`: responsive visual system
-- `src/app/api`: App Router API endpoints
-- `src/lib/auth.ts`: JWT token helpers
-- `prisma/schema.prisma`: agency, RBAC, project, file, feedback, invoice, intake, session, and audit models
-- `.env.example`: local configuration template
+- `docs/milestone-1-foundation.md`: locked product rules and baseline
+- `docs/milestone-2-foundation.md`: locked skeleton, configuration, tests, and CI
+- `docs/milestone-3-foundation.md`: completed workspace data model, migration, seed, and verification
+- `docs/architecture.md`: approved modular-monolith boundaries
+- `docs/authorization.md`: tenant, role, and resource-access rules
+- `docs/r2-cors.md`: mandatory browser-to-R2 CORS policy
+- `docs/storage-lifecycle.md`: upload recovery, retention, and reconciliation
 
-## Production hardening still required
+## Security notes
 
-Connect the route handlers to Prisma, hash passwords with bcrypt, store refresh tokens in secure httpOnly cookies, add request schemas and rate limiting, scope every query by `agencyId`, add object-storage multipart uploads, and add email/Stripe/FFmpeg workers. The schema is designed to support those additions without changing the dashboard contract.
+- Never commit `.env` files or provider credentials.
+- `backups/` is ignored because local exports may contain sensitive prototype data.
+- Uploaded project files must not be committed from `public/uploads/`.
+- The temporary JWT implementation will be removed during the approved Better Auth milestone.

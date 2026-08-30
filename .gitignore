@@ -12,10 +12,15 @@
 
 # testing
 /coverage
+/playwright-report/
+/test-results/
 
 # next.js
 /.next/
 /out/
+
+# generated Prisma client
+/src/generated/prisma/
 
 # production
 /build
@@ -32,6 +37,7 @@ yarn-error.log*
 
 # env files (can opt-in for committing if needed)
 .env*
+!.env.example
 
 # vercel
 .vercel
@@ -43,5 +49,11 @@ next-env.d.ts
 # temporary files
 .tmp/
 
+# local database exports (may contain sensitive prototype data)
+/backups/
+
 # uploaded user files
 public/uploads/
+
+# local review archives
+/vidportal-review.zip

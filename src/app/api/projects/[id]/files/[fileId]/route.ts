@@ -2,26 +2,13 @@ import { NextResponse } from "next/server";
 import { unlink } from "fs/promises";
 import path from "path";
 import { prisma } from "@/lib/prisma";
-import { verifyAccessToken } from "@/lib/auth";
-
-function getAuthUser(request: Request) {
-  const authHeader = request.headers.get("authorization");
-  if (!authHeader?.startsWith("Bearer ")) return null;
-
-  const token = authHeader.replace("Bearer ", "");
-
-  try {
-    return verifyAccessToken(token);
-  } catch {
-    return null;
-  }
-}
+import { getAuthUserFromRequest } from "@/lib/auth";
 
 export async function DELETE(
   request: Request,
   { params }: { params: Promise<{ id: string; fileId: string }> }
 ) {
-  const authUser = getAuthUser(request);
+  const authUser = getAuthUserFromRequest(request);
 
   if (!authUser) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
@@ -32,7 +19,7 @@ export async function DELETE(
   const project = await prisma.project.findFirst({
     where: {
       id,
-      agencyId: authUser.agencyId,
+      workspaceId: authUser.workspaceId,
     },
   });
 
@@ -40,9 +27,10 @@ export async function DELETE(
     return NextResponse.json({ error: "project not found" }, { status: 404 });
   }
 
-  const file = await prisma.file.findFirst({
+  const file = await prisma.fileAsset.findFirst({
     where: {
       id: fileId,
+      workspaceId: authUser.workspaceId,
       projectId: id,
     },
   });
@@ -51,7 +39,7 @@ export async function DELETE(
     return NextResponse.json({ error: "file not found" }, { status: 404 });
   }
 
-  await prisma.file.delete({
+  await prisma.fileAsset.delete({
     where: { id: fileId },
   });
 

@@ -1,19 +1,14 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { verifyAccessToken } from "@/lib/auth";
-
-function getAuthUser(request: Request) {
-  const authHeader = request.headers.get("authorization");
-  if (!authHeader?.startsWith("Bearer ")) return null;
-
-  const token = authHeader.replace("Bearer ", "");
-
-  try {
-    return verifyAccessToken(token);
-  } catch {
-    return null;
-  }
-}
+import { getAuthUserFromRequest } from "@/lib/auth";
+import {
+  toCanonicalProjectStatus,
+  toLegacyClient,
+  toLegacyFileAsset,
+  toLegacyProject,
+  toLegacyRole,
+  type LegacyProjectStatus,
+} from "@/lib/prototype-compat";
 
 const VALID_STATUSES = [
   "BRIEFING",
@@ -22,10 +17,62 @@ const VALID_STATUSES = [
   "REVISIONS",
   "FINAL_DELIVERY",
   "COMPLETED",
-];
+] satisfies LegacyProjectStatus[];
+
+const projectDetails = {
+  client: true,
+  fileAssets: true,
+  comments: {
+    include: { author: { include: { user: true } } },
+    orderBy: { createdAt: "desc" as const },
+  },
+};
+
+type ProjectDetails = Awaited<
+  ReturnType<typeof findPrototypeProject>
+> extends infer Project
+  ? Exclude<Project, null>
+  : never;
+
+function findPrototypeProject(id: string, workspaceId: string) {
+  return prisma.project.findFirst({
+    where: { id, workspaceId },
+    include: projectDetails,
+  });
+}
+
+function serializeProject(project: ProjectDetails) {
+  return {
+    ...toLegacyProject(project),
+    client: toLegacyClient(project.client),
+    files: project.fileAssets.map(toLegacyFileAsset),
+    invoices: [],
+    comments: project.comments.map((comment) => ({
+      id: comment.id,
+      projectId: comment.projectId,
+      authorId: comment.author.userId,
+      body: comment.body,
+      timestampSeconds: comment.timestampSeconds,
+      resolved: comment.resolvedAt !== null,
+      parentId: comment.parentId,
+      createdAt: comment.createdAt,
+      author: {
+        id: comment.author.user.id,
+        agencyId: comment.author.workspaceId,
+        email: comment.author.user.email,
+        name: comment.author.user.name,
+        role: toLegacyRole(comment.author.role),
+        clientId: comment.author.clientId,
+        avatarUrl: comment.author.user.image,
+        createdAt: comment.author.user.createdAt,
+        updatedAt: comment.author.user.updatedAt,
+      },
+    })),
+  };
+}
 
 export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
-  const authUser = getAuthUser(request);
+  const authUser = getAuthUserFromRequest(request);
 
   if (!authUser) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
@@ -33,30 +80,17 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
 
   const { id } = await params;
 
-  const project = await prisma.project.findFirst({
-    where: { id, agencyId: authUser.agencyId },
-    include: {
-      client: true,
-      files: true,
-      invoices: true,
-      comments: { include: { author: true }, orderBy: { createdAt: "desc" } },
-    },
-  });
+  const project = await findPrototypeProject(id, authUser.workspaceId);
 
   if (!project) {
     return NextResponse.json({ error: "project not found" }, { status: 404 });
   }
 
-  const serialized = {
-    ...project,
-    files: project.files.map((file) => ({ ...file, sizeBytes: file.sizeBytes.toString() })),
-  };
-
-  return NextResponse.json({ data: serialized });
+  return NextResponse.json({ data: serializeProject(project) });
 }
 
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
-  const authUser = getAuthUser(request);
+  const authUser = getAuthUserFromRequest(request);
 
   if (!authUser) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
@@ -70,7 +104,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   }
 
   const existing = await prisma.project.findFirst({
-    where: { id, agencyId: authUser.agencyId },
+    where: { id, workspaceId: authUser.workspaceId },
   });
 
   if (!existing) {
@@ -79,19 +113,11 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
 
   const project = await prisma.project.update({
     where: { id },
-    data: { status: body.status },
-    include: {
-      client: true,
-      files: true,
-      invoices: true,
-      comments: { include: { author: true }, orderBy: { createdAt: "desc" } },
+    data: {
+      status: toCanonicalProjectStatus(body.status as LegacyProjectStatus),
     },
+    include: projectDetails,
   });
 
-  const serialized = {
-    ...project,
-    files: project.files.map((file) => ({ ...file, sizeBytes: file.sizeBytes.toString() })),
-  };
-
-  return NextResponse.json({ data: serialized });
+  return NextResponse.json({ data: serializeProject(project) });
 }

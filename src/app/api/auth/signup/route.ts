@@ -1,7 +1,9 @@
 import { NextResponse } from "next/server";
+import { randomUUID } from "crypto";
 import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/prisma";
 import { createAccessToken } from "@/lib/auth";
+import { toLegacyRole } from "@/lib/prototype-compat";
 
 export async function POST(request: Request) {
   const body = await request.json();
@@ -23,24 +25,45 @@ export async function POST(request: Request) {
 
   const slug = body.agencyName.toLowerCase().replace(/[^a-z0-9]+/g, "-");
 
-  const agency = await prisma.agency.create({
-    data: { name: body.agencyName, slug },
-  });
+  const { workspace, user, membership } = await prisma.$transaction(
+    async (transaction) => {
+      const workspace = await transaction.workspace.create({
+        data: { name: body.agencyName, slug },
+      });
+      const user = await transaction.user.create({
+        data: {
+          id: randomUUID(),
+          email: body.email,
+          name: body.name,
+          passwordHash,
+        },
+      });
+      const membership = await transaction.membership.create({
+        data: {
+          workspaceId: workspace.id,
+          userId: user.id,
+          role: "OWNER",
+        },
+      });
 
-  const user = await prisma.user.create({
-    data: {
-      agencyId: agency.id,
-      email: body.email,
-      name: body.name,
-      passwordHash,
-      role: "ADMIN",
+      return { workspace, user, membership };
     },
-  });
+  );
 
-  const token = createAccessToken({ id: user.id, agencyId: user.agencyId, role: user.role });
+  const token = createAccessToken({
+    id: user.id,
+    workspaceId: workspace.id,
+    membershipId: membership.id,
+    role: membership.role,
+  });
 
   return NextResponse.json({
     accessToken: token,
-    user: { id: user.id, email: user.email, name: user.name, role: user.role },
+    user: {
+      id: user.id,
+      email: user.email,
+      name: user.name,
+      role: toLegacyRole(membership.role),
+    },
   });
 }
