@@ -2,25 +2,30 @@ import { NextResponse } from "next/server";
 import { unlink } from "fs/promises";
 import path from "path";
 import { prisma } from "@/lib/prisma";
-import { getAuthUserFromRequest } from "@/lib/auth";
+import {
+  getAuthUserFromRequest,
+  isWorkspaceManager,
+  projectWhereForAuth,
+} from "@/server/authorization";
 
 export async function DELETE(
   request: Request,
   { params }: { params: Promise<{ id: string; fileId: string }> }
 ) {
-  const authUser = getAuthUserFromRequest(request);
+  const authUser = await getAuthUserFromRequest(request);
 
   if (!authUser) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
 
+  if (!isWorkspaceManager(authUser)) {
+    return NextResponse.json({ error: "forbidden" }, { status: 403 });
+  }
+
   const { id, fileId } = await params;
 
   const project = await prisma.project.findFirst({
-    where: {
-      id,
-      workspaceId: authUser.workspaceId,
-    },
+    where: projectWhereForAuth(authUser, id),
   });
 
   if (!project) {

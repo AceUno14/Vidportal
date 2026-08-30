@@ -16,6 +16,12 @@ export const DEMO_IDS = {
     member: "demo_user_member",
     client: "demo_user_client",
   },
+  accounts: {
+    owner: "demo_account_owner",
+    admin: "demo_account_admin",
+    member: "demo_account_member",
+    client: "demo_account_client",
+  },
   memberships: {
     owner: "demo_membership_owner",
     admin: "demo_membership_admin",
@@ -68,6 +74,11 @@ export const DEMO_IDS = {
     completed: "demo_approval_completed",
   },
 } as const;
+
+// Better Auth scrypt hash for the development-only password documented in the README.
+// Keeping the hash fixed makes repeated seed runs content-stable.
+const DEMO_PASSWORD_HASH =
+  "e3b5ad2c7ca30357e34a3fcd7242dff0:4ef82ec502931592b9c36ace754f754462316957a3d23cdf37ee400a68f29d6d7198406524812af23e31b0f9ba64568c1bbbfdfec6ce1c12da5109cfc6c4eeda";
 
 const DEMO_TIMES = {
   workspace: new Date("2026-01-05T08:00:00.000Z"),
@@ -295,6 +306,26 @@ export async function seedDatabase(prisma: PrismaClient) {
 
       await transaction.user.upsert({
         where: { id: user.id },
+        create: data,
+        update: data,
+      });
+    }
+
+    for (const [index, user] of USERS.entries()) {
+      const accountId = Object.values(DEMO_IDS.accounts)[index];
+      const data = {
+        id: accountId,
+        userId: user.id,
+        issuer: "local:credential",
+        accountId: user.id,
+        providerId: "credential",
+        password: DEMO_PASSWORD_HASH,
+        createdAt: DEMO_TIMES.identity,
+        updatedAt: DEMO_TIMES.identity,
+      };
+
+      await transaction.account.upsert({
+        where: { id: accountId },
         create: data,
         update: data,
       });

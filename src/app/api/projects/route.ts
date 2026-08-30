@@ -1,21 +1,25 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { getAuthUserFromRequest } from "@/lib/auth";
 import {
   toLegacyClient,
   toLegacyFileAsset,
   toLegacyProject,
 } from "@/lib/prototype-compat";
+import {
+  getAuthUserFromRequest,
+  isWorkspaceManager,
+  projectWhereForAuth,
+} from "@/server/authorization";
 
 export async function GET(request: Request) {
-  const authUser = getAuthUserFromRequest(request);
+  const authUser = await getAuthUserFromRequest(request);
 
   if (!authUser) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
 
   const projects = await prisma.project.findMany({
-    where: { workspaceId: authUser.workspaceId },
+    where: projectWhereForAuth(authUser),
     include: { client: true, fileAssets: true },
     orderBy: { createdAt: "desc" },
   });
@@ -30,10 +34,14 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
-  const authUser = getAuthUserFromRequest(request);
+  const authUser = await getAuthUserFromRequest(request);
 
   if (!authUser) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  }
+
+  if (!isWorkspaceManager(authUser)) {
+    return NextResponse.json({ error: "forbidden" }, { status: 403 });
   }
 
   const body = await request.json();

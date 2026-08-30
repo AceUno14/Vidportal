@@ -1,13 +1,20 @@
 import { NextResponse } from "next/server";
 import { randomUUID } from "crypto";
-import bcrypt from "bcryptjs";
+import { hashPassword } from "better-auth/crypto";
 import { prisma } from "@/lib/prisma";
-import { getAuthUserFromRequest } from "@/lib/auth";
+import {
+  getAuthUserFromRequest,
+  isWorkspaceManager,
+} from "@/server/authorization";
 
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
-  const authUser = getAuthUserFromRequest(request);
+  const authUser = await getAuthUserFromRequest(request);
 
-  if (!authUser || !["OWNER", "ADMIN"].includes(authUser.role)) {
+  if (!authUser) {
+    return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  }
+
+  if (!isWorkspaceManager(authUser)) {
     return NextResponse.json({ error: "only an admin can create client logins" }, { status: 403 });
   }
 
@@ -38,7 +45,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     );
   }
 
-  const passwordHash = await bcrypt.hash(body.password, 10);
+  const passwordHash = await hashPassword(body.password);
 
   const clientUser = await prisma.$transaction(async (transaction) => {
     const user = await transaction.user.create({
@@ -46,7 +53,17 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
         id: randomUUID(),
         email: client.email,
         name: client.name,
-        passwordHash,
+      },
+    });
+
+    await transaction.account.create({
+      data: {
+        id: randomUUID(),
+        userId: user.id,
+        issuer: "local:credential",
+        accountId: user.id,
+        providerId: "credential",
+        password: passwordHash,
       },
     });
 

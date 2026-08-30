@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { authClient } from "@/lib/auth-client";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -16,24 +17,20 @@ export default function LoginPage() {
     setLoading(true);
 
     try {
-      const res = await fetch("/api/auth/login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password }),
+      const { error: signInError } = await authClient.signIn.email({
+        email,
+        password,
+        rememberMe: true,
       });
 
-      const data = await res.json();
-
-      if (!res.ok) {
-        setError(data.error ?? "Something went wrong. Please try again.");
+      if (signInError) {
+        setError(signInError.message ?? "Invalid email or password.");
         setLoading(false);
         return;
       }
 
-      localStorage.setItem("accessToken", data.accessToken);
-      localStorage.setItem("user", JSON.stringify(data.user));
-
-      router.push("/");
+      router.replace("/");
+      router.refresh();
     } catch {
       setError("Could not reach the server. Please try again.");
       setLoading(false);

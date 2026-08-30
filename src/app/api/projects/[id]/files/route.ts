@@ -2,8 +2,11 @@ import { NextResponse } from "next/server";
 import { mkdir, writeFile } from "fs/promises";
 import path from "path";
 import { prisma } from "@/lib/prisma";
-import { getAuthUserFromRequest } from "@/lib/auth";
 import { toLegacyFileAsset } from "@/lib/prototype-compat";
+import {
+  getAuthUserFromRequest,
+  projectWhereForAuth,
+} from "@/server/authorization";
 
 function kindFromMimeType(mimeType: string): "VIDEO" | "IMAGE" | "DOCUMENT" | "OTHER" {
   if (mimeType.startsWith("video/")) return "VIDEO";
@@ -15,7 +18,7 @@ function kindFromMimeType(mimeType: string): "VIDEO" | "IMAGE" | "DOCUMENT" | "O
 const MAX_SIZE_BYTES = 25 * 1024 * 1024; // 25MB limit for now
 
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
-  const authUser = getAuthUserFromRequest(request);
+  const authUser = await getAuthUserFromRequest(request);
   if (!authUser) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
@@ -23,10 +26,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   const { id } = await params;
 
   const project = await prisma.project.findFirst({
-    where: {
-      id,
-      workspaceId: authUser.workspaceId,
-    },
+    where: projectWhereForAuth(authUser, id),
   });
 
   if (!project) {

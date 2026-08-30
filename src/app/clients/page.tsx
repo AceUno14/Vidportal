@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { authClient } from "@/lib/auth-client";
+import { useCurrentAuth } from "@/lib/current-auth";
 import {
   Bell,
   ChevronDown,
@@ -27,8 +29,6 @@ type ApiClient = {
   _count: { projects: number; users: number };
 };
 
-type CurrentUser = { id: string; email: string; name: string; role: string };
-
 const avatarColors = ["#f3b562", "#b6c9b9", "#c7b6dd", "#e7a7a1", "#a7c7e7"];
 
 function getInitials(name: string) {
@@ -48,8 +48,7 @@ function colorForIndex(index: number) {
 
 export default function ClientsPage() {
   const router = useRouter();
-  const [user, setUser] = useState<CurrentUser | null>(null);
-  const [checkingAuth, setCheckingAuth] = useState(true);
+  const { data: authContext, isPending: checkingAuth } = useCurrentAuth();
 
   const [clients, setClients] = useState<ApiClient[]>([]);
   const [loadingClients, setLoadingClients] = useState(true);
@@ -73,10 +72,7 @@ export default function ClientsPage() {
     setClientsError("");
 
     try {
-      const token = localStorage.getItem("accessToken");
-      const res = await fetch("/api/clients", {
-        headers: { Authorization: "Bearer " + token },
-      });
+      const res = await fetch("/api/clients");
 
       const data = await res.json();
 
@@ -95,31 +91,23 @@ export default function ClientsPage() {
   }
 
   useEffect(() => {
-    const token = localStorage.getItem("accessToken");
-    const storedUser = localStorage.getItem("user");
+    if (checkingAuth) return;
 
-    if (!token || !storedUser) {
-      router.push("/login");
+    if (!authContext) {
+      router.replace("/login");
       return;
     }
 
-    try {
-      // Authentication is restored from browser storage after hydration.
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      setUser(JSON.parse(storedUser));
-      setCheckingAuth(false);
-      fetchClients();
-    } catch {
-      localStorage.removeItem("accessToken");
-      localStorage.removeItem("user");
-      router.replace("/login");
-    }
-  }, [router]);
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    void fetchClients();
+    // Clients are refreshed when the authenticated workspace changes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [authContext?.workspace.id, checkingAuth, router]);
 
-  function handleLogout() {
-    localStorage.removeItem("accessToken");
-    localStorage.removeItem("user");
-    router.push("/login");
+  async function handleLogout() {
+    await authClient.signOut();
+    router.replace("/login");
+    router.refresh();
   }
 
   async function handleCreateClient() {
@@ -133,12 +121,10 @@ export default function ClientsPage() {
     setCreating(true);
 
     try {
-      const token = localStorage.getItem("accessToken");
       const res = await fetch("/api/clients", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: "Bearer " + token,
         },
         body: JSON.stringify({ name: newName, email: newEmail, company: newCompany }),
       });
@@ -175,12 +161,10 @@ export default function ClientsPage() {
     setCreatingLogin(true);
 
     try {
-      const token = localStorage.getItem("accessToken");
       const res = await fetch("/api/clients/" + loginModalClientId + "/create-login", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: "Bearer " + token,
         },
         body: JSON.stringify({ password: loginPassword }),
       });
@@ -203,7 +187,7 @@ export default function ClientsPage() {
     }
   }
 
-  if (checkingAuth || !user) {
+  if (checkingAuth || !authContext) {
     return (
       <main className="login-shell">
         <p style={{ padding: "2rem" }}>Loading...</p>
@@ -211,6 +195,8 @@ export default function ClientsPage() {
     );
   }
 
+  const user = { ...authContext.user, role: authContext.membership.role };
+  const isManager = user.role === "OWNER" || user.role === "ADMIN";
   const initials = getInitials(user.name);
 
   return (
@@ -225,7 +211,7 @@ export default function ClientsPage() {
         <div className="workspace-switcher">
           <div className="workspace-avatar">V</div>
           <div>
-            <strong>Violet House</strong>
+            <strong>{authContext.workspace.name}</strong>
             <small>Agency workspace</small>
           </div>
           <ChevronDown size={15} />
@@ -308,9 +294,11 @@ export default function ClientsPage() {
               <h1>Clients</h1>
               <p className="subtitle">Everyone you work with, in one place.</p>
             </div>
-            <button className="primary-button" onClick={() => setShowAddClient(true)}>
-              <Plus size={17} /> Add client
-            </button>
+            {isManager && (
+              <button className="primary-button" onClick={() => setShowAddClient(true)}>
+                <Plus size={17} /> Add client
+              </button>
+            )}
           </div>
 
           <section className="projects-section">
@@ -324,8 +312,9 @@ export default function ClientsPage() {
               <div style={{ padding: "2rem", textAlign: "center", color: "#6b7280" }}>
                 <p style={{ marginBottom: "0.5rem" }}>No clients yet.</p>
                 <p style={{ fontSize: "0.875rem" }}>
-                  Click &quot;Add client&quot; above, or clients will be created automatically when you
-                  start a new project.
+                  {isManager
+                    ? "Click \"Add client\" above, or create one while starting a project."
+                    : "No client records are currently available to your account."}
                 </p>
               </div>
             )}
@@ -360,7 +349,7 @@ export default function ClientsPage() {
                         <span style={{ color: "#166534", fontSize: "0.8rem", fontWeight: 600 }}>
                           Active
                         </span>
-                      ) : (
+                      ) : isManager ? (
                         <button
                           onClick={() => {
                             setLoginModalClientId(client.id);
@@ -379,6 +368,8 @@ export default function ClientsPage() {
                         >
                           Add login
                         </button>
+                      ) : (
+                        <span style={{ color: "#78716c", fontSize: "0.8rem" }}>Not enabled</span>
                       )}
                     </div>
                   </div>
@@ -389,7 +380,7 @@ export default function ClientsPage() {
         </div>
       </main>
 
-      {showAddClient && (
+      {showAddClient && isManager && (
         <div className="modal-backdrop" onClick={() => setShowAddClient(false)}>
           <div className="modal" onClick={(event) => event.stopPropagation()}>
             <div className="modal-header">
@@ -447,7 +438,7 @@ export default function ClientsPage() {
         </div>
       )}
 
-      {loginModalClientId && (
+      {loginModalClientId && isManager && (
         <div className="modal-backdrop" onClick={() => setLoginModalClientId(null)}>
           <div className="modal" onClick={(event) => event.stopPropagation()}>
             <div className="modal-header">

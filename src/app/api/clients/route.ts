@@ -1,21 +1,40 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { getAuthUserFromRequest } from "@/lib/auth";
 import { toLegacyClient } from "@/lib/prototype-compat";
+import {
+  getAuthUserFromRequest,
+  isWorkspaceManager,
+} from "@/server/authorization";
 
 export async function GET(request: Request) {
-  const authUser = getAuthUserFromRequest(request);
+  const authUser = await getAuthUserFromRequest(request);
 
   if (!authUser) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
 
-  if (authUser.role === "CLIENT") {
-    return NextResponse.json({ error: "forbidden" }, { status: 403 });
-  }
-
   const clients = await prisma.client.findMany({
-    where: { workspaceId: authUser.workspaceId },
+    where: {
+      workspaceId: authUser.workspaceId,
+      ...(authUser.role === "CLIENT"
+        ? { id: authUser.clientId ?? "__missing_client_membership__" }
+        : {}),
+      ...(authUser.role === "MEMBER"
+        ? {
+            projects: {
+              some: {
+                assignments: {
+                  some: {
+                    membershipId: authUser.membershipId,
+                    active: true,
+                    removedAt: null,
+                  },
+                },
+              },
+            },
+          }
+        : {}),
+    },
     include: { _count: { select: { projects: true, memberships: true } } },
     orderBy: { createdAt: "desc" },
   });
@@ -32,13 +51,13 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
-  const authUser = getAuthUserFromRequest(request);
+  const authUser = await getAuthUserFromRequest(request);
 
   if (!authUser) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
 
-  if (authUser.role === "CLIENT") {
+  if (!isWorkspaceManager(authUser)) {
     return NextResponse.json({ error: "forbidden" }, { status: 403 });
   }
 

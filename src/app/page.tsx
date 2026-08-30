@@ -2,6 +2,8 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import { authClient } from "@/lib/auth-client";
+import { useCurrentAuth } from "@/lib/current-auth";
 import {
   Bell,
   Check,
@@ -40,8 +42,6 @@ type ApiProject = {
   client: { name: string; email: string };
   files: { id: string }[];
 };
-
-type CurrentUser = { id: string; email: string; name: string; role: string };
 
 const statusLabels: Record<BackendStatus, string> = {
   BRIEFING: "Briefing",
@@ -92,8 +92,7 @@ function formatDate(dateString: string | null) {
 
 export default function Home() {
   const router = useRouter();
-  const [user, setUser] = useState<CurrentUser | null>(null);
-  const [checkingAuth, setCheckingAuth] = useState(true);
+  const { data: authContext, isPending: checkingAuth } = useCurrentAuth();
   const [activeNav, setActiveNav] = useState("Overview");
   const [query, setQuery] = useState("");
   const [showAll, setShowAll] = useState(false);
@@ -122,10 +121,7 @@ export default function Home() {
     setProjectsError("");
 
     try {
-      const token = localStorage.getItem("accessToken");
-      const res = await fetch("/api/projects", {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const res = await fetch("/api/projects");
 
       const data = await res.json();
 
@@ -144,25 +140,23 @@ export default function Home() {
   }
 
   useEffect(() => {
-    const token = localStorage.getItem("accessToken");
-    const storedUser = localStorage.getItem("user");
+    if (checkingAuth) return;
 
-    if (!token || !storedUser) {
-      router.push("/login");
+    if (!authContext) {
+      router.replace("/login");
       return;
     }
 
-    // Authentication is restored from browser storage after hydration.
     // eslint-disable-next-line react-hooks/set-state-in-effect
-    setUser(JSON.parse(storedUser));
-    setCheckingAuth(false);
-    fetchProjects();
-  }, [router]);
+    void fetchProjects();
+    // Projects are refreshed when the authenticated workspace changes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [authContext?.workspace.id, checkingAuth, router]);
 
-  function handleLogout() {
-    localStorage.removeItem("accessToken");
-    localStorage.removeItem("user");
-    router.push("/login");
+  async function handleLogout() {
+    await authClient.signOut();
+    router.replace("/login");
+    router.refresh();
   }
 
   async function handleCreateProject() {
@@ -176,12 +170,10 @@ export default function Home() {
     setCreatingProject(true);
 
     try {
-      const token = localStorage.getItem("accessToken");
       const res = await fetch("/api/projects", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({
           name: newProjectName,
@@ -211,7 +203,7 @@ export default function Home() {
     }
   }
 
-  if (checkingAuth || !user) {
+  if (checkingAuth || !authContext) {
     return (
       <main className="login-shell">
         <p style={{ padding: "2rem" }}>Loading...</p>
@@ -219,6 +211,8 @@ export default function Home() {
     );
   }
 
+  const user = { ...authContext.user, role: authContext.membership.role };
+  const isManager = user.role === "OWNER" || user.role === "ADMIN";
   const initials = getInitials(user.name);
   const firstName = user.name.split(" ")[0];
   const visibleProjects = showAll ? filteredProjects : filteredProjects.slice(0, 3);
@@ -235,7 +229,7 @@ export default function Home() {
         <div className="workspace-switcher">
           <div className="workspace-avatar">V</div>
           <div>
-            <strong>Violet House</strong>
+            <strong>{authContext.workspace.name}</strong>
             <small>Agency workspace</small>
           </div>
           <ChevronDown size={15} />
@@ -344,11 +338,15 @@ export default function Home() {
               <h1>
                 Good morning, {firstName} <span>✦</span>
               </h1>
-              <p className="subtitle">Here&apos;s what&apos;s moving across Violet House today.</p>
+              <p className="subtitle">
+                Here&apos;s what&apos;s moving across {authContext.workspace.name} today.
+              </p>
             </div>
-            <button className="primary-button" onClick={() => setShowNewProject(true)}>
-              <Plus size={17} /> New project
-            </button>
+            {isManager && (
+              <button className="primary-button" onClick={() => setShowNewProject(true)}>
+                <Plus size={17} /> New project
+              </button>
+            )}
           </div>
 
           <section className="metric-grid">
@@ -415,7 +413,9 @@ export default function Home() {
               <div style={{ padding: "2rem", textAlign: "center", color: "#6b7280" }}>
                 <p style={{ marginBottom: "0.5rem" }}>No projects yet.</p>
                 <p style={{ fontSize: "0.875rem" }}>
-                  Click &quot;New project&quot; above to create your first one.
+                  {isManager
+                    ? "Click \"New project\" above to create your first one."
+                    : "No projects are currently available to your account."}
                 </p>
               </div>
             )}
@@ -518,7 +518,7 @@ export default function Home() {
         </div>
       </main>
 
-      {showNewProject && (
+      {showNewProject && isManager && (
         <div className="modal-backdrop" onClick={() => setShowNewProject(false)}>
           <div className="modal" onClick={(event) => event.stopPropagation()}>
             <div className="modal-header">

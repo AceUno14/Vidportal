@@ -90,7 +90,7 @@ export async function verifyCanonicalSeed(prisma: PrismaClient) {
     comments,
     approvals,
     activities,
-    accountCount,
+    accounts,
     sessionCount,
     verificationCount,
   ] = await Promise.all([
@@ -236,9 +236,19 @@ export async function verifyCanonicalSeed(prisma: PrismaClient) {
         actorMembershipId: true,
       },
     }),
-    prisma.account.count(),
-    prisma.session.count(),
-    prisma.verification.count(),
+    prisma.account.findMany({
+      where: { id: demoId },
+      select: {
+        id: true,
+        userId: true,
+        issuer: true,
+        accountId: true,
+        providerId: true,
+        password: true,
+      },
+    }),
+    prisma.session.count({ where: { id: demoId } }),
+    prisma.verification.count({ where: { id: demoId } }),
   ]);
 
   invariant(workspace, "the demo workspace is missing");
@@ -246,6 +256,7 @@ export async function verifyCanonicalSeed(prisma: PrismaClient) {
   invariant(workspace.archivedAt === null, "the demo workspace is archived");
 
   assertIds("users", users, Object.values(DEMO_IDS.users));
+  assertIds("accounts", accounts, Object.values(DEMO_IDS.accounts));
   assertIds("memberships", memberships, Object.values(DEMO_IDS.memberships));
   assertIds("clients", clients, Object.values(DEMO_IDS.clients));
   assertIds("projects", projects, Object.values(DEMO_IDS.projects));
@@ -283,10 +294,19 @@ export async function verifyCanonicalSeed(prisma: PrismaClient) {
     invariant(rows?.length === expectedCount, `${model} expected ${expectedCount} demo rows`);
   }
 
-  invariant(
-    accountCount === 0 && sessionCount === 0 && verificationCount === 0,
-    "the canonical seed must not contain Better Auth account, session, or verification rows",
+  invariant(sessionCount === 0 && verificationCount === 0,
+    "the canonical seed must not contain short-lived session or verification rows",
   );
+
+  for (const account of accounts) {
+    invariant(
+      account.issuer === "local:credential" &&
+        account.providerId === "credential" &&
+        account.accountId === account.userId &&
+        Boolean(account.password),
+      `account ${account.id} is not a valid Better Auth credential account`,
+    );
+  }
 
   const membershipById = new Map(memberships.map((membership) => [membership.id, membership]));
   const ownerMemberships = memberships.filter(
@@ -465,7 +485,7 @@ export async function verifyCanonicalSeed(prisma: PrismaClient) {
     workspaceId: workspace.id,
     counts: EXPECTED_DEMO_COUNTS,
     authRows: {
-      accounts: accountCount,
+      accounts: accounts.length,
       sessions: sessionCount,
       verifications: verificationCount,
     },

@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { getAuthUserFromRequest } from "@/lib/auth";
 import {
   toCanonicalProjectStatus,
   toLegacyClient,
@@ -9,6 +8,11 @@ import {
   toLegacyRole,
   type LegacyProjectStatus,
 } from "@/lib/prototype-compat";
+import {
+  getAuthUserFromRequest,
+  projectWhereForAuth,
+  type AuthUser,
+} from "@/server/authorization";
 
 const VALID_STATUSES = [
   "BRIEFING",
@@ -34,9 +38,9 @@ type ProjectDetails = Awaited<
   ? Exclude<Project, null>
   : never;
 
-function findPrototypeProject(id: string, workspaceId: string) {
+function findPrototypeProject(id: string, authUser: AuthUser) {
   return prisma.project.findFirst({
-    where: { id, workspaceId },
+    where: projectWhereForAuth(authUser, id),
     include: projectDetails,
   });
 }
@@ -72,7 +76,7 @@ function serializeProject(project: ProjectDetails) {
 }
 
 export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
-  const authUser = getAuthUserFromRequest(request);
+  const authUser = await getAuthUserFromRequest(request);
 
   if (!authUser) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
@@ -80,7 +84,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
 
   const { id } = await params;
 
-  const project = await findPrototypeProject(id, authUser.workspaceId);
+  const project = await findPrototypeProject(id, authUser);
 
   if (!project) {
     return NextResponse.json({ error: "project not found" }, { status: 404 });
@@ -90,10 +94,14 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
 }
 
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
-  const authUser = getAuthUserFromRequest(request);
+  const authUser = await getAuthUserFromRequest(request);
 
   if (!authUser) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  }
+
+  if (authUser.role === "CLIENT") {
+    return NextResponse.json({ error: "forbidden" }, { status: 403 });
   }
 
   const { id } = await params;
@@ -104,7 +112,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   }
 
   const existing = await prisma.project.findFirst({
-    where: { id, workspaceId: authUser.workspaceId },
+    where: projectWhereForAuth(authUser, id),
   });
 
   if (!existing) {

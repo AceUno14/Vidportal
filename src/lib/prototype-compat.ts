@@ -1,7 +1,7 @@
 /**
  * Temporary adapters that keep the prototype API/UI contract stable while the
- * database uses the canonical Milestone 3 vocabulary. Remove these alongside
- * the legacy JWT routes in Milestone 4.
+ * database uses the canonical Phase 2 vocabulary. These can be removed when
+ * the prototype UI adopts the canonical project and file response shapes.
  */
 
 export type CanonicalMembershipRole = "OWNER" | "ADMIN" | "MEMBER" | "CLIENT";

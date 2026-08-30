@@ -2,6 +2,8 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter, useParams } from "next/navigation";
+import { authClient } from "@/lib/auth-client";
+import { useCurrentAuth } from "@/lib/current-auth";
 import {
   ArrowLeft,
   Bell,
@@ -50,8 +52,6 @@ type ApiProject = {
   comments: { id: string; body: string; author: { name: string }; createdAt: string }[];
 };
 
-type CurrentUser = { id: string; email: string; name: string; role: string };
-
 const statusOptions: { value: BackendStatus; label: string }[] = [
   { value: "BRIEFING", label: "Briefing" },
   { value: "IN_PROGRESS", label: "In progress" },
@@ -99,8 +99,7 @@ export default function ProjectDetailPage() {
   const projectId = params.id as string;
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const [user, setUser] = useState<CurrentUser | null>(null);
-  const [checkingAuth, setCheckingAuth] = useState(true);
+  const { data: authContext, isPending: checkingAuth } = useCurrentAuth();
 
   const [project, setProject] = useState<ApiProject | null>(null);
   const [loading, setLoading] = useState(true);
@@ -115,10 +114,7 @@ export default function ProjectDetailPage() {
     setError("");
 
     try {
-      const token = localStorage.getItem("accessToken");
-      const res = await fetch("/api/projects/" + projectId, {
-        headers: { Authorization: "Bearer " + token },
-      });
+      const res = await fetch("/api/projects/" + projectId);
 
       const data = await res.json();
 
@@ -137,34 +133,26 @@ export default function ProjectDetailPage() {
   }
 
   useEffect(() => {
-    const token = localStorage.getItem("accessToken");
-    const storedUser = localStorage.getItem("user");
+    if (checkingAuth) return;
 
-    if (!token || !storedUser) {
-      router.push("/login");
+    if (!authContext) {
+      router.replace("/login");
       return;
     }
 
-    // Authentication is restored from browser storage after hydration.
     // eslint-disable-next-line react-hooks/set-state-in-effect
-    setUser(JSON.parse(storedUser));
-    setCheckingAuth(false);
-    fetchProject();
-    // fetchProject is intentionally invoked only when the route identity changes.
+    void fetchProject();
+    // Project data is refreshed when the route or authenticated workspace changes.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [router, projectId]);
+  }, [authContext?.workspace.id, checkingAuth, projectId, router]);
 
   async function handleDeleteFile(fileId: string, fileName: string) {
     const confirmed = window.confirm("Delete \"" + fileName + "\"? This cannot be undone.");
     if (!confirmed) return;
 
     try {
-      const token = localStorage.getItem("accessToken");
       const res = await fetch("/api/projects/" + projectId + "/files/" + fileId, {
         method: "DELETE",
-        headers: {
-          Authorization: "Bearer " + token,
-        },
       });
 
       if (res.ok) {
@@ -175,22 +163,20 @@ export default function ProjectDetailPage() {
     }
   }
 
-  function handleLogout() {
-    localStorage.removeItem("accessToken");
-    localStorage.removeItem("user");
-    router.push("/login");
+  async function handleLogout() {
+    await authClient.signOut();
+    router.replace("/login");
+    router.refresh();
   }
 
   async function handleStatusChange(newStatus: BackendStatus) {
     setUpdatingStatus(true);
 
     try {
-      const token = localStorage.getItem("accessToken");
       const res = await fetch("/api/projects/" + projectId, {
         method: "PATCH",
         headers: {
           "Content-Type": "application/json",
-          Authorization: "Bearer " + token,
         },
         body: JSON.stringify({ status: newStatus }),
       });
@@ -215,13 +201,11 @@ export default function ProjectDetailPage() {
     setUploading(true);
 
     try {
-      const token = localStorage.getItem("accessToken");
       const formData = new FormData();
       formData.append("file", file);
 
       const res = await fetch("/api/projects/" + projectId + "/files", {
         method: "POST",
-        headers: { Authorization: "Bearer " + token },
         body: formData,
       });
 
@@ -243,7 +227,7 @@ export default function ProjectDetailPage() {
     }
   }
 
-  if (checkingAuth || !user) {
+  if (checkingAuth || !authContext) {
     return (
       <main className="login-shell">
         <p style={{ padding: "2rem" }}>Loading...</p>
@@ -251,6 +235,9 @@ export default function ProjectDetailPage() {
     );
   }
 
+  const user = { ...authContext.user, role: authContext.membership.role };
+  const isManager = user.role === "OWNER" || user.role === "ADMIN";
+  const canEditStatus = user.role !== "CLIENT";
   const initials = getInitials(user.name);
 
   return (
@@ -265,7 +252,7 @@ export default function ProjectDetailPage() {
         <div className="workspace-switcher">
           <div className="workspace-avatar">V</div>
           <div>
-            <strong>Violet House</strong>
+            <strong>{authContext.workspace.name}</strong>
             <small>Agency workspace</small>
           </div>
           <ChevronDown size={15} />
@@ -373,7 +360,7 @@ export default function ProjectDetailPage() {
                 </div>
                 <select
                   value={project.status}
-                  disabled={updatingStatus}
+                  disabled={updatingStatus || !canEditStatus}
                   onChange={(event) => handleStatusChange(event.target.value as BackendStatus)}
                   style={{
                     padding: "0.6rem 1rem",
@@ -479,20 +466,22 @@ export default function ProjectDetailPage() {
                               {file.kind} - {formatFileSize(file.sizeBytes)} - {formatDate(file.createdAt)}
                             </div>
                           </div>
-                          <button
-                            onClick={() => handleDeleteFile(file.id, file.name)}
-                            style={{
-                              background: "none",
-                              border: "1px solid #fca5a5",
-                              color: "#991b1b",
-                              borderRadius: "6px",
-                              padding: "0.35rem 0.75rem",
-                              fontSize: "0.8rem",
-                              cursor: "pointer",
-                            }}
-                          >
-                            Delete
-                          </button>
+                          {isManager && (
+                            <button
+                              onClick={() => handleDeleteFile(file.id, file.name)}
+                              style={{
+                                background: "none",
+                                border: "1px solid #fca5a5",
+                                color: "#991b1b",
+                                borderRadius: "6px",
+                                padding: "0.35rem 0.75rem",
+                                fontSize: "0.8rem",
+                                cursor: "pointer",
+                              }}
+                            >
+                              Delete
+                            </button>
+                          )}
                         </div>
                       );
                     })}

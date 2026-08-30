@@ -8,8 +8,10 @@ const routeFilePattern = /^(?:page|route)\.(?:js|jsx|ts|tsx)$/;
 
 const expectedRoutes = [
   "/",
-  "/api/auth/login",
+  "/api/auth/[...all]",
+  "/api/auth/context",
   "/api/auth/signup",
+  "/api/auth/workspace",
   "/api/clients",
   "/api/clients/[id]/create-login",
   "/api/health",
@@ -59,10 +61,10 @@ async function discoverRoutes(
 }
 
 describe("Next.js route inventory", () => {
-  it("preserves the locked 13-route prototype surface", async () => {
+  it("matches the Phase 2 authentication route surface", async () => {
     const routes = (await discoverRoutes(appDirectory)).sort();
 
     expect(routes).toEqual(expectedRoutes);
-    expect(new Set(routes).size).toBe(13);
+    expect(new Set(routes).size).toBe(15);
   });
 });

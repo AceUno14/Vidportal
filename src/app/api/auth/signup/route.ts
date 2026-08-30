@@ -1,69 +1,92 @@
+import { randomUUID } from "node:crypto";
+
+import { hashPassword } from "better-auth/crypto";
 import { NextResponse } from "next/server";
-import { randomUUID } from "crypto";
-import bcrypt from "bcryptjs";
+import { z } from "zod";
+
 import { prisma } from "@/lib/prisma";
-import { createAccessToken } from "@/lib/auth";
-import { toLegacyRole } from "@/lib/prototype-compat";
+import { auth } from "@/server/auth";
+
+const signupSchema = z.object({
+  name: z.string().trim().min(1).max(100),
+  email: z.email().transform((email) => email.toLowerCase()),
+  password: z.string().min(8).max(128),
+  agencyName: z.string().trim().min(1).max(100),
+});
+
+function workspaceSlug(name: string) {
+  return name
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-|-$/g, "")
+    .slice(0, 48);
+}
 
 export async function POST(request: Request) {
-  const body = await request.json();
+  const parsed = signupSchema.safeParse(await request.json());
 
-  if (!body.email || !body.password || !body.name || !body.agencyName) {
+  if (!parsed.success) {
     return NextResponse.json(
-      { error: "name, email, password, and agencyName are required" },
-      { status: 400 }
+      { error: "valid name, email, password, and agencyName are required" },
+      { status: 400 },
     );
   }
 
-  const existingUser = await prisma.user.findUnique({ where: { email: body.email } });
+  const { name, email, password, agencyName } = parsed.data;
+  const existingUser = await prisma.user.findUnique({ where: { email } });
 
   if (existingUser) {
-    return NextResponse.json({ error: "an account with this email already exists" }, { status: 409 });
+    return NextResponse.json(
+      { error: "an account with this email already exists" },
+      { status: 409 },
+    );
   }
 
-  const passwordHash = await bcrypt.hash(body.password, 10);
+  const passwordHash = await hashPassword(password);
+  const baseSlug = workspaceSlug(agencyName) || "workspace";
+  const existingWorkspace = await prisma.workspace.findUnique({
+    where: { slug: baseSlug },
+    select: { id: true },
+  });
+  const slug = existingWorkspace
+    ? `${baseSlug}-${randomUUID().slice(0, 8)}`
+    : baseSlug;
 
-  const slug = body.agencyName.toLowerCase().replace(/[^a-z0-9]+/g, "-");
+  await prisma.$transaction(async (transaction) => {
+    const workspace = await transaction.workspace.create({
+      data: { name: agencyName, slug },
+    });
+    const user = await transaction.user.create({
+      data: {
+        id: randomUUID(),
+        email,
+        name,
+      },
+    });
 
-  const { workspace, user, membership } = await prisma.$transaction(
-    async (transaction) => {
-      const workspace = await transaction.workspace.create({
-        data: { name: body.agencyName, slug },
-      });
-      const user = await transaction.user.create({
-        data: {
-          id: randomUUID(),
-          email: body.email,
-          name: body.name,
-          passwordHash,
-        },
-      });
-      const membership = await transaction.membership.create({
-        data: {
-          workspaceId: workspace.id,
-          userId: user.id,
-          role: "OWNER",
-        },
-      });
+    await transaction.account.create({
+      data: {
+        id: randomUUID(),
+        userId: user.id,
+        issuer: "local:credential",
+        accountId: user.id,
+        providerId: "credential",
+        password: passwordHash,
+      },
+    });
 
-      return { workspace, user, membership };
-    },
-  );
-
-  const token = createAccessToken({
-    id: user.id,
-    workspaceId: workspace.id,
-    membershipId: membership.id,
-    role: membership.role,
+    await transaction.membership.create({
+      data: {
+        workspaceId: workspace.id,
+        userId: user.id,
+        role: "OWNER",
+      },
+    });
   });
 
-  return NextResponse.json({
-    accessToken: token,
-    user: {
-      id: user.id,
-      email: user.email,
-      name: user.name,
-      role: toLegacyRole(membership.role),
-    },
+  return auth.api.signInEmail({
+    body: { email, password, rememberMe: true },
+    headers: request.headers,
+    asResponse: true,
   });
 }

@@ -2,7 +2,7 @@
 
 VidPortal is a video-first project intake, review, feedback, and delivery portal for agencies, production houses, and freelancers.
 
-The repository contains a working prototype on the canonical workspace-scoped Prisma model with a Neon runtime adapter and deterministic development seed. Milestones 1–3 are complete. Better Auth, R2 uploads, Stream review, and Resend email remain future milestones and are not claimed as complete.
+The repository contains a working prototype on the canonical workspace-scoped Prisma model with a Neon runtime adapter, Better Auth cookie sessions, and a deterministic development seed. Phase 2 foundation work is complete through authentication. R2 uploads, Stream review, and Resend email remain later work and are not claimed as complete.
 
 ## Local setup
 
@@ -18,7 +18,7 @@ Copy-Item .env.example .env
 npm ci
 ```
 
-Configure Neon's pooled connection as `DATABASE_URL`, its direct connection as `DIRECT_URL`, and a temporary `JWT_SECRET` for the prototype routes. The remaining placeholders document the locked target environment and become active in their implementation milestones.
+Configure Neon's pooled connection as `DATABASE_URL`, its direct connection as `DIRECT_URL`, and set `BETTER_AUTH_SECRET` to at least 32 random characters. Keep `BETTER_AUTH_URL` aligned with the application origin (`http://localhost:3000` locally and the canonical HTTPS origin in Netlify). The remaining placeholders document the locked target environment and become active in later phases.
 
 Generate the client, apply migrations to a disposable development database, seed the canonical dataset, and verify it:
 
@@ -35,6 +35,15 @@ The Milestone 3 migration is reset-only for the former prototype model. Do not u
 
 Open `http://localhost:3000`.
 
+The canonical development seed creates four Better Auth logins with the shared development-only password `VidPortalDemo123!`:
+
+- `owner@demo.vidportal.test`
+- `admin@demo.vidportal.test`
+- `editor@demo.vidportal.test`
+- `client@demo.vidportal.test`
+
+Never reuse this password or the local development auth secret outside a disposable development environment.
+
 ## Verification
 
 ```powershell
@@ -47,11 +56,14 @@ npm run test:e2e -- tests/e2e/health.spec.ts
 ## Current prototype routes
 
 - `/`: agency dashboard and project creation
-- `/login`: prototype login and signup
+- `/login`: Better Auth email/password login
 - `/clients`: client management
 - `/projects/[id]`: project detail and prototype file management
 - `/api/health`: service health
-- `/api/auth/*`: temporary JWT authentication routes
+- `/api/auth/[...all]`: Better Auth handler
+- `/api/auth/context`: current user, membership, and workspace context
+- `/api/auth/workspace`: validated active-workspace switching
+- `/api/auth/signup`: workspace-owner onboarding
 - `/api/clients/*`: client routes
 - `/api/projects/*`: project and file routes
 
@@ -60,6 +72,7 @@ npm run test:e2e -- tests/e2e/health.spec.ts
 - `docs/milestone-1-foundation.md`: locked product rules and baseline
 - `docs/milestone-2-foundation.md`: locked skeleton, configuration, tests, and CI
 - `docs/milestone-3-foundation.md`: completed workspace data model, migration, seed, and verification
+- `docs/phase-2-auth-foundation.md`: completed Better Auth and workspace authorization foundation
 - `docs/architecture.md`: approved modular-monolith boundaries
 - `docs/authorization.md`: tenant, role, and resource-access rules
 - `docs/r2-cors.md`: mandatory browser-to-R2 CORS policy
@@ -70,4 +83,5 @@ npm run test:e2e -- tests/e2e/health.spec.ts
 - Never commit `.env` files or provider credentials.
 - `backups/` is ignored because local exports may contain sensitive prototype data.
 - Uploaded project files must not be committed from `public/uploads/`.
-- The temporary JWT implementation will be removed during the approved Better Auth milestone.
+- Authentication uses secure HTTP-only Better Auth session cookies; bearer tokens are not stored in browser storage.
+- Public Better Auth signup is disabled. VidPortal's workspace-aware signup route creates the user, credential account, workspace, and owner membership together.

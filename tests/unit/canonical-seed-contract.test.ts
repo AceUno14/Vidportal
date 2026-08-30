@@ -30,9 +30,13 @@ describe("canonical development seed contract", () => {
     expect(seedSource).not.toMatch(/\.deleteMany\s*\(/);
   });
 
-  it("does not seed authentication secrets or short-lived auth records", () => {
-    expect(seedSource).not.toMatch(/\bpassword(?:Hash)?\s*:/i);
-    expect(seedSource).not.toMatch(/\.(?:account|session|verification)\s*\./i);
+  it("seeds stable Better Auth credential accounts without short-lived auth records", () => {
+    expect(seedSource).toMatch(/\.account\.upsert\s*\(/i);
+    expect(seedSource).toMatch(/issuer\s*:\s*["']local:credential["']/i);
+    expect(seedSource).toMatch(/providerId\s*:\s*["']credential["']/i);
+    expect(seedSource).toMatch(/password\s*:\s*DEMO_PASSWORD_HASH/i);
+    expect(seedSource).not.toContain("VidPortalDemo123!");
+    expect(seedSource).not.toMatch(/\.(?:session|verification)\s*\.(?:create|upsert)\s*\(/i);
   });
 
   it("provides a read-only canonical dataset verifier", () => {
