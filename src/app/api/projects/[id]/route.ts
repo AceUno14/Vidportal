@@ -48,6 +48,7 @@ function findPrototypeProject(id: string, authUser: AuthUser) {
 function serializeProject(project: ProjectDetails) {
   return {
     ...toLegacyProject(project),
+    canonicalStatus: project.status,
     client: toLegacyClient(project.client),
     files: project.fileAssets.map(toLegacyFileAsset),
     invoices: [],
@@ -117,6 +118,13 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
 
   if (!existing) {
     return NextResponse.json({ error: "project not found" }, { status: 404 });
+  }
+
+  if (existing.status !== "READY" || body.status !== "IN_PROGRESS") {
+    return NextResponse.json(
+      { error: "This project transition is not available yet." },
+      { status: 409 },
+    );
   }
 
   const project = await prisma.project.update({

@@ -164,8 +164,8 @@ const CLIENTS = [
 const PROJECTS = [
   {
     id: DEMO_IDS.projects.intake,
-    clientId: DEMO_IDS.clients.brightline,
-    name: "Brightline Product Launch",
+    clientId: DEMO_IDS.clients.acme,
+    name: "Acme Product Launch",
     description: "Waiting for the client to complete the structured brief.",
     type: "Product launch",
     status: "INTAKE",
@@ -441,6 +441,7 @@ export async function seedDatabase(prisma: PrismaClient) {
         ...project,
         workspaceId: DEMO_IDS.workspace,
         intakeTemplateVersionId:
+          project.id === DEMO_IDS.projects.intake ||
           project.id === DEMO_IDS.projects.ready
             ? DEMO_IDS.intakeTemplateVersion
             : null,

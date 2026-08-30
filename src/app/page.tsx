@@ -115,6 +115,19 @@ export default function Home() {
       ),
     [query, realProjects]
   );
+  const now = new Date();
+  const todayLabel = now.toLocaleDateString("en-US", {
+    weekday: "long",
+    month: "long",
+    day: "numeric",
+    year: "numeric",
+  });
+  const greeting =
+    now.getHours() < 12
+      ? "Good morning"
+      : now.getHours() < 18
+        ? "Good afternoon"
+        : "Good evening";
 
   async function fetchProjects() {
     setLoadingProjects(true);
@@ -334,9 +347,11 @@ export default function Home() {
 
           <div className="page-intro">
             <div>
-              <p className="eyebrow">Wednesday, June 19, 2024</p>
-              <h1>
-                Good morning, {firstName} <span>✦</span>
+              <p className="eyebrow" suppressHydrationWarning>
+                {todayLabel}
+              </p>
+              <h1 suppressHydrationWarning>
+                {greeting}, {firstName} <span>✦</span>
               </h1>
               <p className="subtitle">
                 Here&apos;s what&apos;s moving across {authContext.workspace.name} today.

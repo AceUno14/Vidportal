@@ -20,6 +20,7 @@ import {
   Upload,
   Users,
 } from "lucide-react";
+import { IntakePanel } from "@/features/intake/intake-panel";
 
 type BackendStatus =
   | "BRIEFING"
@@ -43,6 +44,14 @@ type ApiProject = {
   id: string;
   name: string;
   status: BackendStatus;
+  canonicalStatus:
+    | "INTAKE"
+    | "READY"
+    | "IN_PROGRESS"
+    | "CLIENT_REVIEW"
+    | "REVISIONS"
+    | "FINAL_DELIVERY"
+    | "COMPLETED";
   deliveryDate: string | null;
   budgetCents: number | null;
   createdAt: string;
@@ -51,15 +60,6 @@ type ApiProject = {
   invoices: { id: string; number: string; status: string; amountCents: number }[];
   comments: { id: string; body: string; author: { name: string }; createdAt: string }[];
 };
-
-const statusOptions: { value: BackendStatus; label: string }[] = [
-  { value: "BRIEFING", label: "Briefing" },
-  { value: "IN_PROGRESS", label: "In progress" },
-  { value: "CLIENT_REVIEW", label: "Client review" },
-  { value: "REVISIONS", label: "Revisions" },
-  { value: "FINAL_DELIVERY", label: "Final delivery" },
-  { value: "COMPLETED", label: "Completed" },
-];
 
 function getInitials(name: string) {
   return name
@@ -92,6 +92,16 @@ function formatFileSize(bytes: string) {
   if (num < 1024 * 1024) return (num / 1024).toFixed(1) + " KB";
   return (num / (1024 * 1024)).toFixed(1) + " MB";
 }
+
+const projectStageLabels: Record<ApiProject["canonicalStatus"], string> = {
+  INTAKE: "Waiting for brief",
+  READY: "Ready for production",
+  IN_PROGRESS: "In progress",
+  CLIENT_REVIEW: "Client review",
+  REVISIONS: "Revisions",
+  FINAL_DELIVERY: "Final delivery",
+  COMPLETED: "Completed",
+};
 
 export default function ProjectDetailPage() {
   const router = useRouter();
@@ -358,25 +368,19 @@ export default function ProjectDetailPage() {
                   <h1>{project.name}</h1>
                   <p className="subtitle">Created {formatDate(project.createdAt)}</p>
                 </div>
-                <select
-                  value={project.status}
-                  disabled={updatingStatus || !canEditStatus}
-                  onChange={(event) => handleStatusChange(event.target.value as BackendStatus)}
-                  style={{
-                    padding: "0.6rem 1rem",
-                    borderRadius: "8px",
-                    border: "1px solid #d6d3d1",
-                    background: "white",
-                    fontWeight: 600,
-                    cursor: "pointer",
-                  }}
-                >
-                  {statusOptions.map((option) => (
-                    <option key={option.value} value={option.value}>
-                      {option.label}
-                    </option>
-                  ))}
-                </select>
+                {project.canonicalStatus === "READY" && canEditStatus ? (
+                  <button
+                    className="primary-button"
+                    disabled={updatingStatus}
+                    onClick={() => handleStatusChange("IN_PROGRESS")}
+                  >
+                    {updatingStatus ? "Starting..." : "Start production"}
+                  </button>
+                ) : (
+                  <span className="project-stage-label">
+                    {projectStageLabels[project.canonicalStatus]}
+                  </span>
+                )}
               </div>
 
               <section className="metric-grid">
@@ -398,6 +402,12 @@ export default function ProjectDetailPage() {
                   <strong style={{ fontSize: "1.1rem" }}>{project.files.length}</strong>
                 </div>
               </section>
+
+              <IntakePanel
+                projectId={projectId}
+                role={user.role}
+                onProjectReady={() => void fetchProject()}
+              />
 
               <section className="projects-section">
                 <div className="section-heading">

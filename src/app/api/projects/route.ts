@@ -1,4 +1,6 @@
 import { NextResponse } from "next/server";
+import { z } from "zod";
+
 import { prisma } from "@/lib/prisma";
 import {
   toLegacyClient,
@@ -10,6 +12,12 @@ import {
   isWorkspaceManager,
   projectWhereForAuth,
 } from "@/server/authorization";
+
+const createProjectSchema = z.object({
+  name: z.string().trim().min(1).max(120),
+  clientName: z.string().trim().min(1).max(120),
+  clientEmail: z.email().transform((email) => email.toLowerCase()),
+});
 
 export async function GET(request: Request) {
   const authUser = await getAuthUserFromRequest(request);
@@ -44,37 +52,72 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "forbidden" }, { status: 403 });
   }
 
-  const body = await request.json();
+  const parsed = createProjectSchema.safeParse(await request.json());
 
-  if (!body.name || !body.clientName || !body.clientEmail) {
+  if (!parsed.success) {
     return NextResponse.json(
-      { error: "name, clientName, and clientEmail are required" },
+      { error: "A valid project name, client name, and client email are required." },
       { status: 400 }
     );
   }
 
-  let client = await prisma.client.findFirst({
-    where: { workspaceId: authUser.workspaceId, email: body.clientEmail },
+  const { name, clientName, clientEmail } = parsed.data;
+  const intakeTemplateVersion = await prisma.intakeTemplateVersion.findFirst({
+    where: {
+      workspaceId: authUser.workspaceId,
+      publishedAt: { not: null },
+      intakeTemplate: { active: true, archivedAt: null },
+    },
+    orderBy: { publishedAt: "desc" },
+    select: { id: true },
   });
 
-  if (!client) {
-    client = await prisma.client.create({
-      data: {
-        workspaceId: authUser.workspaceId,
-        name: body.clientName,
-        email: body.clientEmail,
-      },
-    });
+  if (!intakeTemplateVersion) {
+    return NextResponse.json(
+      { error: "Publish an intake template before creating a project." },
+      { status: 409 },
+    );
   }
 
-  const project = await prisma.project.create({
-    data: {
-      workspaceId: authUser.workspaceId,
-      clientId: client.id,
-      name: body.name,
-      status: "INTAKE",
-    },
-    include: { client: true },
+  const project = await prisma.$transaction(async (transaction) => {
+    let client = await transaction.client.findFirst({
+      where: { workspaceId: authUser.workspaceId, email: clientEmail },
+    });
+
+    if (!client) {
+      client = await transaction.client.create({
+        data: {
+          workspaceId: authUser.workspaceId,
+          name: clientName,
+          email: clientEmail,
+        },
+      });
+    }
+
+    const createdProject = await transaction.project.create({
+      data: {
+        workspaceId: authUser.workspaceId,
+        clientId: client.id,
+        intakeTemplateVersionId: intakeTemplateVersion.id,
+        name,
+        status: "INTAKE",
+      },
+      include: { client: true },
+    });
+
+    await transaction.activity.create({
+      data: {
+        workspaceId: authUser.workspaceId,
+        projectId: createdProject.id,
+        actorMembershipId: authUser.membershipId,
+        action: "PROJECT_CREATED",
+        entityType: "Project",
+        entityId: createdProject.id,
+        metadata: { status: "INTAKE" },
+      },
+    });
+
+    return createdProject;
   });
 
   return NextResponse.json(

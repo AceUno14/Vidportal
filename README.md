@@ -2,7 +2,7 @@
 
 VidPortal is a video-first project intake, review, feedback, and delivery portal for agencies, production houses, and freelancers.
 
-The repository contains a working prototype on the canonical workspace-scoped Prisma model with a Neon runtime adapter, Better Auth cookie sessions, and a deterministic development seed. Phase 2 foundation work is complete through authentication. R2 uploads, Stream review, and Resend email remain later work and are not claimed as complete.
+The repository contains a working prototype on the canonical workspace-scoped Prisma model with a Neon runtime adapter, Better Auth cookie sessions, a deterministic development seed, and a structured client-intake vertical slice. Phase 2 foundation work is complete through authentication, and Phase 3 Slice 1 carries a client brief from `INTAKE` to `READY`. R2 uploads, Stream review, and Resend email remain later work and are not claimed as complete.
 
 ## Local setup
 
@@ -58,14 +58,14 @@ npm run test:e2e -- tests/e2e/health.spec.ts
 - `/`: agency dashboard and project creation
 - `/login`: Better Auth email/password login
 - `/clients`: client management
-- `/projects/[id]`: project detail and prototype file management
+- `/projects/[id]`: project detail, structured client intake, and prototype file management
 - `/api/health`: service health
 - `/api/auth/[...all]`: Better Auth handler
 - `/api/auth/context`: current user, membership, and workspace context
 - `/api/auth/workspace`: validated active-workspace switching
 - `/api/auth/signup`: workspace-owner onboarding
 - `/api/clients/*`: client routes
-- `/api/projects/*`: project and file routes
+- `/api/projects/*`: project, intake, and file routes
 
 ## Architecture documentation
 
@@ -73,6 +73,7 @@ npm run test:e2e -- tests/e2e/health.spec.ts
 - `docs/milestone-2-foundation.md`: locked skeleton, configuration, tests, and CI
 - `docs/milestone-3-foundation.md`: completed workspace data model, migration, seed, and verification
 - `docs/phase-2-auth-foundation.md`: completed Better Auth and workspace authorization foundation
+- `docs/phase-3-slice-1-intake.md`: completed structured client-intake vertical slice
 - `docs/architecture.md`: approved modular-monolith boundaries
 - `docs/authorization.md`: tenant, role, and resource-access rules
 - `docs/r2-cors.md`: mandatory browser-to-R2 CORS policy

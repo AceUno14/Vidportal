@@ -19,6 +19,7 @@ const expectedRoutes = [
   "/api/projects/[id]",
   "/api/projects/[id]/files",
   "/api/projects/[id]/files/[fileId]",
+  "/api/projects/[id]/intake",
   "/clients",
   "/login",
   "/projects/[id]",
@@ -61,10 +62,10 @@ async function discoverRoutes(
 }
 
 describe("Next.js route inventory", () => {
-  it("matches the Phase 2 authentication route surface", async () => {
+  it("matches the current application route surface", async () => {
     const routes = (await discoverRoutes(appDirectory)).sort();
 
     expect(routes).toEqual(expectedRoutes);
-    expect(new Set(routes).size).toBe(15);
+    expect(new Set(routes).size).toBe(16);
   });
 });
