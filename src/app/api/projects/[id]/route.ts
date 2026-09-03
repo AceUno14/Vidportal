@@ -3,7 +3,6 @@ import { prisma } from "@/lib/prisma";
 import {
   toCanonicalProjectStatus,
   toLegacyClient,
-  toLegacyFileAsset,
   toLegacyProject,
   toLegacyRole,
   type LegacyProjectStatus,
@@ -25,7 +24,14 @@ const VALID_STATUSES = [
 
 const projectDetails = {
   client: true,
-  fileAssets: true,
+  fileAssets: {
+    select: {
+      status: true,
+      visibility: true,
+      purpose: true,
+      uploadedByMembershipId: true,
+    },
+  },
   comments: {
     include: { author: { include: { user: true } } },
     orderBy: { createdAt: "desc" as const },
@@ -45,12 +51,23 @@ function findPrototypeProject(id: string, authUser: AuthUser) {
   });
 }
 
-function serializeProject(project: ProjectDetails) {
+function serializeProject(project: ProjectDetails, authUser: AuthUser) {
+  const fileCount = project.fileAssets.filter((file) => {
+    if (file.status === "DELETED" || file.status === "ARCHIVED") return false;
+    if (authUser.role !== "CLIENT") return true;
+    return (
+      (file.status === "READY" &&
+        file.visibility === "PUBLISHED" &&
+        file.purpose === "FINAL_DELIVERABLE") ||
+      file.uploadedByMembershipId === authUser.membershipId
+    );
+  }).length;
+
   return {
     ...toLegacyProject(project),
     canonicalStatus: project.status,
     client: toLegacyClient(project.client),
-    files: project.fileAssets.map(toLegacyFileAsset),
+    fileCount,
     invoices: [],
     comments: project.comments.map((comment) => ({
       id: comment.id,
@@ -91,7 +108,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
     return NextResponse.json({ error: "project not found" }, { status: 404 });
   }
 
-  return NextResponse.json({ data: serializeProject(project) });
+  return NextResponse.json({ data: serializeProject(project, authUser) });
 }
 
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -135,5 +152,5 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     include: projectDetails,
   });
 
-  return NextResponse.json({ data: serializeProject(project) });
+  return NextResponse.json({ data: serializeProject(project, authUser) });
 }

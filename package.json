@@ -20,6 +20,8 @@
     "routes:verify": "vitest run tests/unit/route-inventory.test.ts"
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "3.1121.0",
+    "@aws-sdk/s3-request-presigner": "3.1121.0",
     "@better-auth/prisma-adapter": "1.7.2",
     "@neondatabase/serverless": "1.1.0",
     "@prisma/adapter-neon": "7.10.0",

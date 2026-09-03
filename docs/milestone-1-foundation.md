@@ -102,7 +102,7 @@ Lifecycle invariants:
 - Application cleanup and reconciliation remain aligned with the configured provider lifecycle.
 - Archived Stream review versions are hidden but retained until explicitly deleted by an owner/admin.
 - Activity records are append-only and retained for the lifetime of the workspace in v1.
-- Storage quotas and automated customer billing are not v1 features, but usage must be observable before external launch.
+- Customer-specific storage plans and automated billing are not v1 features. A deployment-wide safety guard may cap managed storage, and usage must remain observable before external launch.
 
 File visibility is explicit metadata:
 

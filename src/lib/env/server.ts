@@ -5,12 +5,14 @@ import {
   parseDatabaseEnvironment,
   parseEmailEnvironment,
   parseR2Environment,
+  parseR2StorageQuotaEnvironment,
   parseServerEnvironment,
   parseStreamEnvironment,
   type AuthEnvironment,
   type DatabaseEnvironment,
   type EmailEnvironment,
   type R2Environment,
+  type R2StorageQuotaEnvironment,
   type ServerEnvironment,
   type StreamEnvironment,
 } from "./schema";
@@ -18,6 +20,7 @@ import {
 let cachedDatabaseEnvironment: DatabaseEnvironment | undefined;
 let cachedAuthEnvironment: AuthEnvironment | undefined;
 let cachedR2Environment: R2Environment | undefined;
+let cachedR2StorageQuotaEnvironment: R2StorageQuotaEnvironment | undefined;
 let cachedStreamEnvironment: StreamEnvironment | undefined;
 let cachedEmailEnvironment: EmailEnvironment | undefined;
 let cachedEnvironment: ServerEnvironment | undefined;
@@ -35,6 +38,12 @@ export function getAuthEnvironment(): AuthEnvironment {
 export function getR2Environment(): R2Environment {
   cachedR2Environment ??= parseR2Environment(process.env);
   return cachedR2Environment;
+}
+
+export function getR2StorageQuotaEnvironment(): R2StorageQuotaEnvironment {
+  cachedR2StorageQuotaEnvironment ??=
+    parseR2StorageQuotaEnvironment(process.env);
+  return cachedR2StorageQuotaEnvironment;
 }
 
 export function getStreamEnvironment(): StreamEnvironment {

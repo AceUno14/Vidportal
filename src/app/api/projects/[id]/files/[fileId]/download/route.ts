@@ -1,10 +1,10 @@
 import { NextResponse } from "next/server";
 
 import { fileErrorResponse } from "@/features/files/http";
-import { softDeleteProjectFile } from "@/features/files/service";
+import { authorizeFileDownload } from "@/features/files/service";
 import { getAuthUserFromRequest } from "@/server/authorization";
 
-export async function DELETE(
+export async function POST(
   request: Request,
   { params }: { params: Promise<{ id: string; fileId: string }> },
 ) {
@@ -16,7 +16,7 @@ export async function DELETE(
   const { id, fileId } = await params;
   try {
     return NextResponse.json({
-      data: await softDeleteProjectFile(authUser, id, fileId),
+      data: await authorizeFileDownload(authUser, id, fileId),
     });
   } catch (error) {
     return fileErrorResponse(error);

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { authClient } from "@/lib/auth-client";
 import { useCurrentAuth } from "@/lib/current-auth";
@@ -17,9 +17,9 @@ import {
   Search,
   Settings,
   Sparkles,
-  Upload,
   Users,
 } from "lucide-react";
+import { FileTransferPanel } from "@/features/files/file-transfer-panel";
 import { IntakePanel } from "@/features/intake/intake-panel";
 
 type BackendStatus =
@@ -29,16 +29,6 @@ type BackendStatus =
   | "REVISIONS"
   | "FINAL_DELIVERY"
   | "COMPLETED";
-
-type ApiFile = {
-  id: string;
-  name: string;
-  storageKey: string;
-  mimeType: string;
-  kind: "VIDEO" | "IMAGE" | "DOCUMENT" | "OTHER";
-  sizeBytes: string;
-  createdAt: string;
-};
 
 type ApiProject = {
   id: string;
@@ -56,7 +46,7 @@ type ApiProject = {
   budgetCents: number | null;
   createdAt: string;
   client: { id: string; name: string; email: string; company: string | null };
-  files: ApiFile[];
+  fileCount: number;
   invoices: { id: string; number: string; status: string; amountCents: number }[];
   comments: { id: string; body: string; author: { name: string }; createdAt: string }[];
 };
@@ -86,13 +76,6 @@ function formatMoney(cents: number | null) {
   return "$" + (cents / 100).toLocaleString("en-US", { minimumFractionDigits: 2 });
 }
 
-function formatFileSize(bytes: string) {
-  const num = Number(bytes);
-  if (num < 1024) return num + " B";
-  if (num < 1024 * 1024) return (num / 1024).toFixed(1) + " KB";
-  return (num / (1024 * 1024)).toFixed(1) + " MB";
-}
-
 const projectStageLabels: Record<ApiProject["canonicalStatus"], string> = {
   INTAKE: "Waiting for brief",
   READY: "Ready for production",
@@ -107,7 +90,6 @@ export default function ProjectDetailPage() {
   const router = useRouter();
   const params = useParams();
   const projectId = params.id as string;
-  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const { data: authContext, isPending: checkingAuth } = useCurrentAuth();
 
@@ -115,9 +97,6 @@ export default function ProjectDetailPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [updatingStatus, setUpdatingStatus] = useState(false);
-
-  const [uploading, setUploading] = useState(false);
-  const [uploadError, setUploadError] = useState("");
 
   async function fetchProject() {
     setLoading(true);
@@ -156,23 +135,6 @@ export default function ProjectDetailPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [authContext?.workspace.id, checkingAuth, projectId, router]);
 
-  async function handleDeleteFile(fileId: string, fileName: string) {
-    const confirmed = window.confirm("Delete \"" + fileName + "\"? This cannot be undone.");
-    if (!confirmed) return;
-
-    try {
-      const res = await fetch("/api/projects/" + projectId + "/files/" + fileId, {
-        method: "DELETE",
-      });
-
-      if (res.ok) {
-        fetchProject();
-      }
-    } catch {
-      // Silent fail is fine here; the file list will simply stay as-is.
-    }
-  }
-
   async function handleLogout() {
     await authClient.signOut();
     router.replace("/login");
@@ -203,39 +165,9 @@ export default function ProjectDetailPage() {
     }
   }
 
-  async function handleFileSelected(event: React.ChangeEvent<HTMLInputElement>) {
-    const file = event.target.files ? event.target.files[0] : null;
-    if (!file) return;
-
-    setUploadError("");
-    setUploading(true);
-
-    try {
-      const formData = new FormData();
-      formData.append("file", file);
-
-      const res = await fetch("/api/projects/" + projectId + "/files", {
-        method: "POST",
-        body: formData,
-      });
-
-      const data = await res.json();
-
-      if (!res.ok) {
-        setUploadError(data.error || "Upload failed. Please try again.");
-        setUploading(false);
-        return;
-      }
-
-      setUploading(false);
-      fetchProject();
-    } catch {
-      setUploadError("Could not reach the server. Please try again.");
-      setUploading(false);
-    } finally {
-      if (fileInputRef.current) fileInputRef.current.value = "";
-    }
-  }
+  const handleFileCountChange = useCallback((count: number) => {
+    setProject((current) => (current ? { ...current, fileCount: count } : current));
+  }, []);
 
   if (checkingAuth || !authContext) {
     return (
@@ -246,7 +178,6 @@ export default function ProjectDetailPage() {
   }
 
   const user = { ...authContext.user, role: authContext.membership.role };
-  const isManager = user.role === "OWNER" || user.role === "ADMIN";
   const canEditStatus = user.role !== "CLIENT";
   const initials = getInitials(user.name);
 
@@ -399,7 +330,7 @@ export default function ProjectDetailPage() {
                 </div>
                 <div className="metric-card">
                   <p>Files</p>
-                  <strong style={{ fontSize: "1.1rem" }}>{project.files.length}</strong>
+                  <strong style={{ fontSize: "1.1rem" }}>{project.fileCount}</strong>
                 </div>
               </section>
 
@@ -409,95 +340,10 @@ export default function ProjectDetailPage() {
                 onProjectReady={() => void fetchProject()}
               />
 
-              <section className="projects-section">
-                <div className="section-heading">
-                  <div>
-                    <h2>Files</h2>
-                    <p>Raw footage, assets, and deliverables for this project.</p>
-                  </div>
-                  <div>
-                    <input
-                      ref={fileInputRef}
-                      type="file"
-                      onChange={handleFileSelected}
-                      style={{ display: "none" }}
-                    />
-                    <button
-                      className="primary-button"
-                      onClick={() => {
-                        if (fileInputRef.current) fileInputRef.current.click();
-                      }}
-                      disabled={uploading}
-                    >
-                      <Upload size={16} />
-                      {uploading ? " Uploading..." : " Upload file"}
-                    </button>
-                  </div>
-                </div>
-
-                {uploadError && (
-                  <p style={{ padding: "0 1.5rem", color: "#991b1b", fontSize: "0.875rem" }}>
-                    {uploadError}
-                  </p>
-                )}
-
-                <p style={{ padding: "0 1.5rem", color: "#9ca3af", fontSize: "0.8rem" }}>
-                  25MB limit for now. Larger uploads need cloud storage, coming later.
-                </p>
-
-                {project.files.length === 0 ? (
-                  <div style={{ padding: "2rem", textAlign: "center", color: "#6b7280" }}>
-                    <p>No files uploaded yet.</p>
-                  </div>
-                ) : (
-                  <div style={{ padding: "1rem 1.5rem" }}>
-                    {project.files.map((file) => {
-                      return (
-                        <div
-                          key={file.id}
-                          style={{
-                            display: "flex",
-                            justifyContent: "space-between",
-                            alignItems: "center",
-                            padding: "0.75rem 0",
-                            borderBottom: "1px solid #eee",
-                          }}
-                        >
-                          <div>
-                            <a
-                              href={file.storageKey}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              style={{ fontWeight: 600, color: "#1a1a1a", textDecoration: "none" }}
-                            >
-                              {file.name}
-                            </a>
-                            <div style={{ fontSize: "0.8rem", color: "#9ca3af" }}>
-                              {file.kind} - {formatFileSize(file.sizeBytes)} - {formatDate(file.createdAt)}
-                            </div>
-                          </div>
-                          {isManager && (
-                            <button
-                              onClick={() => handleDeleteFile(file.id, file.name)}
-                              style={{
-                                background: "none",
-                                border: "1px solid #fca5a5",
-                                color: "#991b1b",
-                                borderRadius: "6px",
-                                padding: "0.35rem 0.75rem",
-                                fontSize: "0.8rem",
-                                cursor: "pointer",
-                              }}
-                            >
-                              Delete
-                            </button>
-                          )}
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-              </section>
+              <FileTransferPanel
+                projectId={projectId}
+                onFileCountChange={handleFileCountChange}
+              />
 
               <section className="projects-section">
                 <div className="section-heading">

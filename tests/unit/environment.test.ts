@@ -50,7 +50,17 @@ describe("server environment validation", () => {
 
     expect(environment.LOG_LEVEL).toBe("info");
     expect(environment.R2_PRESIGNED_URL_TTL_SECONDS).toBe(900);
+    expect(environment.R2_STORAGE_QUOTA_BYTES).toBe(8_000_000_000);
     expect(environment.STREAM_TOKEN_TTL_SECONDS).toBe(900);
+  });
+
+  it("accepts an explicit R2 storage quota", () => {
+    const environment = parseServerEnvironment({
+      ...validEnvironment,
+      R2_STORAGE_QUOTA_BYTES: "6000000000",
+    });
+
+    expect(environment.R2_STORAGE_QUOTA_BYTES).toBe(6_000_000_000);
   });
 
   it("reports a missing required variable by name without printing secrets", () => {

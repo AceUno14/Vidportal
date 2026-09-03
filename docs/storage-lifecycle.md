@@ -176,7 +176,7 @@ Reconciliation never grants visibility to repair uncertainty. Ambiguous items st
 
 ## 10. Cost and launch controls
 
-Automated storage quotas and customer billing are out of scope for v1. Before external launch, VidPortal must still expose enough provider and application usage to validate the approved monthly budget and choose practical retention defaults.
+Customer-specific storage plans and automated billing are out of scope for v1. VidPortal enforces a configurable deployment-wide guard for managed R2 objects, defaulting to 8,000,000,000 bytes, and exposes used-or-reserved and remaining capacity in the file interface. The guard assumes a dedicated application bucket; provider reconciliation and dashboard monitoring still cover objects created outside the normal application lifecycle.
 
 Production-readiness evidence includes:
 

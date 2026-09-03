@@ -27,6 +27,13 @@ const emailAddress = z.string().refine((value) => {
   return z.email().safeParse(brandedAddress ?? value).success;
 }, "Must contain a valid email address");
 const positiveSeconds = z.coerce.number().int().positive().max(604_800);
+export const DEFAULT_R2_STORAGE_QUOTA_BYTES = 8_000_000_000;
+const storageQuotaBytes = z.coerce
+  .number()
+  .int()
+  .positive()
+  .max(1_000_000_000_000)
+  .default(DEFAULT_R2_STORAGE_QUOTA_BYTES);
 
 export const databaseEnvironmentSchema = z.object({
   DATABASE_URL: postgresUrl,
@@ -39,12 +46,17 @@ export const authEnvironmentSchema = z.object({
   BETTER_AUTH_URL: applicationUrl,
 });
 
+export const r2StorageQuotaEnvironmentSchema = z.object({
+  R2_STORAGE_QUOTA_BYTES: storageQuotaBytes,
+});
+
 export const r2EnvironmentSchema = z.object({
   CLOUDFLARE_ACCOUNT_ID: z.string().min(1),
   R2_BUCKET_NAME: z.string().min(1),
   R2_ACCESS_KEY_ID: z.string().min(1),
   R2_SECRET_ACCESS_KEY: z.string().min(1),
   R2_PRESIGNED_URL_TTL_SECONDS: positiveSeconds.default(900),
+  ...r2StorageQuotaEnvironmentSchema.shape,
 });
 
 export const streamEnvironmentSchema = z.object({
@@ -73,6 +85,9 @@ export const serverEnvironmentSchema = z.object({
 export type DatabaseEnvironment = z.infer<typeof databaseEnvironmentSchema>;
 export type AuthEnvironment = z.infer<typeof authEnvironmentSchema>;
 export type R2Environment = z.infer<typeof r2EnvironmentSchema>;
+export type R2StorageQuotaEnvironment = z.infer<
+  typeof r2StorageQuotaEnvironmentSchema
+>;
 export type StreamEnvironment = z.infer<typeof streamEnvironmentSchema>;
 export type EmailEnvironment = z.infer<typeof emailEnvironmentSchema>;
 export type ServerEnvironment = z.infer<typeof serverEnvironmentSchema>;
@@ -113,6 +128,16 @@ export function parseAuthEnvironment(
 
 export function parseR2Environment(source: EnvironmentSource): R2Environment {
   return parseEnvironment(r2EnvironmentSchema, source, "R2");
+}
+
+export function parseR2StorageQuotaEnvironment(
+  source: EnvironmentSource,
+): R2StorageQuotaEnvironment {
+  return parseEnvironment(
+    r2StorageQuotaEnvironmentSchema,
+    source,
+    "R2 storage quota",
+  );
 }
 
 export function parseStreamEnvironment(

@@ -2,7 +2,7 @@
 
 VidPortal is a video-first project intake, review, feedback, and delivery portal for agencies, production houses, and freelancers.
 
-The repository contains a working prototype on the canonical workspace-scoped Prisma model with a Neon runtime adapter, Better Auth cookie sessions, a deterministic development seed, and a structured client-intake vertical slice. Phase 2 foundation work is complete through authentication, and Phase 3 Slice 1 carries a client brief from `INTAKE` to `READY`. R2 uploads, Stream review, and Resend email remain later work and are not claimed as complete.
+The repository contains a working prototype on the canonical workspace-scoped Prisma model with a Neon runtime adapter, Better Auth cookie sessions, a deterministic development seed, structured client intake, and an implemented direct-to-R2 file-transfer slice. Phase 3 Slice 2 has passed private-bucket connectivity, exact-origin CORS, live single-part and multipart upload lifecycles, authorized byte-for-byte download verification, paused-transfer recovery, multipart cancellation, and a configurable 8 GB storage guard. Stream review and Resend email remain later work and are not claimed as complete.
 
 ## Local setup
 
@@ -18,7 +18,7 @@ Copy-Item .env.example .env
 npm ci
 ```
 
-Configure Neon's pooled connection as `DATABASE_URL`, its direct connection as `DIRECT_URL`, and set `BETTER_AUTH_SECRET` to at least 32 random characters. Keep `BETTER_AUTH_URL` aligned with the application origin (`http://localhost:3000` locally and the canonical HTTPS origin in Netlify). The remaining placeholders document the locked target environment and become active in later phases.
+Configure Neon's pooled connection as `DATABASE_URL`, its direct connection as `DIRECT_URL`, and set `BETTER_AUTH_SECRET` to at least 32 random characters. Keep `BETTER_AUTH_URL` aligned with the application origin (`http://localhost:3000` locally and the canonical HTTPS origin in Netlify). Configure the private R2 bucket credentials for project files. `R2_STORAGE_QUOTA_BYTES` is optional and defaults to `8000000000` bytes.
 
 Generate the client, apply migrations to a disposable development database, seed the canonical dataset, and verify it:
 
@@ -58,7 +58,7 @@ npm run test:e2e -- tests/e2e/health.spec.ts
 - `/`: agency dashboard and project creation
 - `/login`: Better Auth email/password login
 - `/clients`: client management
-- `/projects/[id]`: project detail, structured client intake, and prototype file management
+- `/projects/[id]`: project detail, structured client intake, and secure project-file transfer
 - `/api/health`: service health
 - `/api/auth/[...all]`: Better Auth handler
 - `/api/auth/context`: current user, membership, and workspace context
@@ -74,6 +74,7 @@ npm run test:e2e -- tests/e2e/health.spec.ts
 - `docs/milestone-3-foundation.md`: completed workspace data model, migration, seed, and verification
 - `docs/phase-2-auth-foundation.md`: completed Better Auth and workspace authorization foundation
 - `docs/phase-3-slice-1-intake.md`: completed structured client-intake vertical slice
+- `docs/phase-3-slice-2-r2-files.md`: completed direct-to-R2 project-file slice, live acceptance, and storage guard
 - `docs/architecture.md`: approved modular-monolith boundaries
 - `docs/authorization.md`: tenant, role, and resource-access rules
 - `docs/r2-cors.md`: mandatory browser-to-R2 CORS policy
