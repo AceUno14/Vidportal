@@ -345,7 +345,7 @@ export default function ProjectDetailPage() {
                 projectId={projectId}
                 onFileCountChange={handleFileCountChange}
               />
-              <ReviewPanel projectId={projectId} canPublish={user.role === "OWNER" || user.role === "ADMIN"} />
+              <ReviewPanel projectId={projectId} canPublish={user.role === "OWNER" || user.role === "ADMIN"} canDecide={user.role === "CLIENT" && project.canonicalStatus === "CLIENT_REVIEW"} onDecision={() => void fetchProject()} />
             </div>
           )}
         </div>

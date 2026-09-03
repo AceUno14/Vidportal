@@ -29,7 +29,11 @@ export async function createProjectReview(user: AuthUser, projectId: string, inp
   const file = await prisma.fileAsset.findFirst({ where: { id: input.fileAssetId, workspaceId: user.workspaceId, projectId, status: "READY", kind: "VIDEO" } });
   if (!file) throw new FileServiceError("Choose a ready video file for review.", 422);
   const latest = await prisma.reviewVersion.aggregate({ where: { workspaceId: user.workspaceId, projectId }, _max: { version: true } });
-  const review = await prisma.reviewVersion.create({ data: { workspaceId: user.workspaceId, projectId, createdByMembershipId: user.membershipId, sourceFileAssetId: file.id, version: (latest._max.version ?? 0) + 1, title: input.title, declaredFilename: file.originalFilename, declaredByteSize: file.sizeBytes, declaredContentType: file.contentType, maxDurationSeconds: 600, status: "READY", readyAt: new Date() }, include: reviewInclude });
+  const review = await prisma.$transaction(async (transaction) => {
+    const created = await transaction.reviewVersion.create({ data: { workspaceId: user.workspaceId, projectId, createdByMembershipId: user.membershipId, sourceFileAssetId: file.id, version: (latest._max.version ?? 0) + 1, title: input.title, declaredFilename: file.originalFilename, declaredByteSize: file.sizeBytes, declaredContentType: file.contentType, maxDurationSeconds: 600, status: "SUBMITTED", readyAt: new Date(), submittedAt: new Date() }, include: reviewInclude });
+    await transaction.project.updateMany({ where: { id: projectId, workspaceId: user.workspaceId, status: { in: ["READY", "IN_PROGRESS", "REVISIONS"] } }, data: { status: "CLIENT_REVIEW" } });
+    return created;
+  });
   return serialize(review);
 }
 
@@ -47,4 +51,24 @@ export async function addReviewComment(user: AuthUser, projectId: string, review
   if (!review) throw new FileServiceError("Review version not found.", 404);
   const comment = await prisma.comment.create({ data: { workspaceId: user.workspaceId, projectId, reviewVersionId: review.id, authorMembershipId: user.membershipId, body: input.body, timestampSeconds: input.timestampSeconds }, include: { author: { include: { user: true } } } });
   return { id: comment.id, body: comment.body, timestampSeconds: comment.timestampSeconds, createdAt: comment.createdAt, author: comment.author.user.name };
+}
+
+export async function decideReview(user: AuthUser, projectId: string, reviewId: string, input: { decision: "APPROVED" | "CHANGES_REQUESTED"; note?: string }) {
+  if (user.role !== "CLIENT" || !user.clientId) throw new FileServiceError("Only the associated client can make this decision.", 403);
+  await requireProject(user, projectId);
+  return prisma.$transaction(async (transaction) => {
+    const review = await transaction.reviewVersion.findFirst({ where: { id: reviewId, workspaceId: user.workspaceId, projectId, status: "SUBMITTED" } });
+    if (!review) throw new FileServiceError("This review version is not available for a client decision.", 409);
+    const prior = await transaction.approval.findUnique({ where: { workspaceId_reviewVersionId: { workspaceId: user.workspaceId, reviewVersionId: reviewId } } });
+    if (prior) {
+      if (prior.decision === input.decision) return { decision: prior.decision, idempotent: true };
+      throw new FileServiceError("A decision has already been recorded for this version.", 409);
+    }
+    const targetStatus = input.decision === "APPROVED" ? "FINAL_DELIVERY" : "REVISIONS";
+    const updated = await transaction.project.updateMany({ where: { id: projectId, workspaceId: user.workspaceId, status: "CLIENT_REVIEW" }, data: { status: targetStatus } });
+    if (updated.count !== 1) throw new FileServiceError("This project is not awaiting a client decision.", 409);
+    await transaction.approval.create({ data: { workspaceId: user.workspaceId, projectId, reviewVersionId: reviewId, decidedByMembershipId: user.membershipId, decision: input.decision, note: input.note || null } });
+    await transaction.activity.create({ data: { workspaceId: user.workspaceId, projectId, actorMembershipId: user.membershipId, action: input.decision === "APPROVED" ? "REVIEW_APPROVED" : "CHANGES_REQUESTED", entityType: "ReviewVersion", entityId: reviewId, metadata: { decision: input.decision }, clientVisible: true } });
+    return { decision: input.decision, idempotent: false };
+  });
 }

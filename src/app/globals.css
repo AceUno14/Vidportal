@@ -138,9 +138,10 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 .review-tabs button.active { background: #222420; color: #fff; border-color: #222420; }
 .review-publish { display: flex; align-items: center; flex-wrap: wrap; gap: .6rem; padding: .9rem; margin-bottom: 1rem; background: #f4eee4; border-radius: 8px; }
 .review-publish span { display: inline-flex; gap: .35rem; align-items: center; font-weight: 600; }
-.review-comments { display: flex; flex-direction: column; gap: .65rem; max-height: 530px; }
+.review-comments { display: flex; flex-direction: column; gap: .65rem; max-height: none; }
 .review-comments-title { display: flex; gap: .45rem; align-items: center; }
 .review-note { text-align: left; border: 0; border-left: 2px solid #f0a79f; background: #fff9f7; padding: .65rem .75rem; cursor: pointer; }
 .review-note span { color: #df5344; font-size: .75rem; margin-right: .5rem; font-weight: 700; }.review-note strong { font-size: .8rem; }.review-note p { margin: .35rem 0 0; font-size: .875rem; }
+.review-decision { margin-top: .35rem; padding: .85rem; background: #f4eee4; border-top: 2px solid #e7b4a8; display: grid; grid-template-columns: 1fr 1fr; gap: .55rem; }.review-decision strong { grid-column: 1 / -1; font-family: var(--font-serif); font-size: 1rem; }.review-decision button { min-height: 38px; border: 1px solid #ba5f52; border-radius: 6px; background: transparent; color: #9f4036; font: inherit; font-weight: 700; cursor: pointer; }.review-decision .primary-button { border-color: #f36c5a; background: #f36c5a; color: #fff; }
 .review-composer { margin-top: auto; display: grid; gap: .5rem; }.review-composer textarea { width: 100%; min-height: 72px; resize: vertical; padding: .65rem; font: inherit; border: 1px solid #cfcfc7; border-radius: 6px; }.review-composer .primary-button { justify-content: center; display: inline-flex; gap: .4rem; align-items: center; }.review-empty, .review-loading { min-height: 160px; display: grid; place-content: center; justify-items: center; gap: .6rem; color: #6b7280; text-align: center; }.muted { color: #6b7280; }
 @media (max-width: 760px) { .review-layout { grid-template-columns: 1fr; }.review-comments { max-height: none; }.review-publish { align-items: flex-start; flex-direction: column; } }
