@@ -26,6 +26,11 @@ function downloadDisposition(filename: string) {
   return `attachment; filename="${fallback}"; filename*=UTF-8''${encodeURIComponent(filename)}`;
 }
 
+function inlineDisposition(filename: string) {
+  const fallback = filename.replace(/[^a-zA-Z0-9._ -]/g, "_");
+  return `inline; filename="${fallback}"; filename*=UTF-8''${encodeURIComponent(filename)}`;
+}
+
 export function getR2StorageProvider(): FileStorageProvider {
   if (provider) return provider;
 
@@ -153,13 +158,14 @@ export function getR2StorageProvider(): FileStorageProvider {
       };
     },
 
-    async signDownload({ key, filename }) {
+    async signDownload({ key, filename, disposition = "attachment" }) {
       const url = await getSignedUrl(
         client,
         new GetObjectCommand({
           Bucket: bucket,
           Key: key,
-          ResponseContentDisposition: downloadDisposition(filename),
+          ResponseContentDisposition:
+            disposition === "inline" ? inlineDisposition(filename) : downloadDisposition(filename),
         }),
         { expiresIn },
       );

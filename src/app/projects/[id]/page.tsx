@@ -21,6 +21,7 @@ import {
 } from "lucide-react";
 import { FileTransferPanel } from "@/features/files/file-transfer-panel";
 import { IntakePanel } from "@/features/intake/intake-panel";
+import { ReviewPanel } from "@/features/reviews/review-panel";
 
 type BackendStatus =
   | "BRIEFING"
@@ -344,30 +345,7 @@ export default function ProjectDetailPage() {
                 projectId={projectId}
                 onFileCountChange={handleFileCountChange}
               />
-
-              <section className="projects-section">
-                <div className="section-heading">
-                  <div>
-                    <h2>Feedback</h2>
-                    <p>Comments and revision notes from the client.</p>
-                  </div>
-                </div>
-                {project.comments.length === 0 ? (
-                  <div style={{ padding: "2rem", textAlign: "center", color: "#6b7280" }}>
-                    <p>No comments yet.</p>
-                  </div>
-                ) : (
-                  project.comments.map((comment) => (
-                    <div className="activity-item" key={comment.id}>
-                      <div>
-                        <strong>{comment.author.name}</strong>
-                        <small>{comment.body}</small>
-                      </div>
-                      <time>{formatDate(comment.createdAt)}</time>
-                    </div>
-                  ))
-                )}
-              </section>
+              <ReviewPanel projectId={projectId} canPublish={user.role === "OWNER" || user.role === "ADMIN"} />
             </div>
           )}
         </div>

@@ -43,5 +43,6 @@ export interface FileStorageProvider {
   signDownload(input: {
     key: string;
     filename: string;
+    disposition?: "attachment" | "inline";
   }): Promise<SignedProviderRequest>;
 }

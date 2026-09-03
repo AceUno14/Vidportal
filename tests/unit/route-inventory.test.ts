@@ -21,6 +21,9 @@ const expectedRoutes = [
   "/api/projects/[id]/files/[fileId]",
   "/api/projects/[id]/files/[fileId]/download",
   "/api/projects/[id]/intake",
+  "/api/projects/[id]/reviews",
+  "/api/projects/[id]/reviews/[reviewId]/comments",
+  "/api/projects/[id]/reviews/[reviewId]/playback",
   "/api/projects/[id]/uploads/[uploadId]",
   "/api/projects/[id]/uploads/[uploadId]/abort",
   "/api/projects/[id]/uploads/[uploadId]/complete",
@@ -71,6 +74,6 @@ describe("Next.js route inventory", () => {
     const routes = (await discoverRoutes(appDirectory)).sort();
 
     expect(routes).toEqual(expectedRoutes);
-    expect(new Set(routes).size).toBe(21);
+    expect(new Set(routes).size).toBe(24);
   });
 });
