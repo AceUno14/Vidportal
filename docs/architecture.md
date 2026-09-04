@@ -32,7 +32,7 @@ The deployment target is:
 - Vercel for the Next.js application.
 - Neon PostgreSQL for relational application data.
 - Cloudflare R2 for original assets, documents, and final deliverables.
-- Cloudflare Stream for private review playback versions.
+- Private Cloudflare R2 presigned playback for the free v1 review path. Cloudflare Stream remains an optional future upgrade for adaptive playback and transcoding.
 - Resend for transactional email.
 
 This design keeps operations manageable for one developer while preserving clean domain and infrastructure boundaries. V1 does not introduce a separate API server, job-service deployment, GraphQL layer, or microservices.

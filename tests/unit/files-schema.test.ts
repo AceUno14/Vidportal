@@ -80,6 +80,7 @@ describe("file transfer validation and policy", () => {
   it("limits client purposes and downloads to published final deliverables", () => {
     expect(allowedUploadPurposes("CLIENT")).toEqual(["SOURCE", "REFERENCE"]);
     expect(allowedUploadPurposes("MEMBER")).toContain("ATTACHMENT");
+    expect(allowedUploadPurposes("OWNER")).toContain("FINAL_DELIVERABLE");
     expect(
       canDownloadAsset("CLIENT", {
         status: "READY",

@@ -32,6 +32,7 @@ export const uploadPurposeSchema = z.enum([
   "SOURCE",
   "REFERENCE",
   "ATTACHMENT",
+  "FINAL_DELIVERABLE",
 ]);
 
 export const initiateUploadRequestSchema = z.object({

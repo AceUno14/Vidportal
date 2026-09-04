@@ -114,7 +114,11 @@ async function storageOperation<T>(operation: () => Promise<T>) {
   }
 }
 
-function serializeAsset(asset: SafeAsset, authUser: AuthUser) {
+function serializeAsset(
+  asset: SafeAsset,
+  authUser: AuthUser,
+  projectStatus: string,
+) {
   const manager = isWorkspaceManager(authUser);
   const activeUpload =
     asset.uploadSession &&
@@ -135,7 +139,21 @@ function serializeAsset(asset: SafeAsset, authUser: AuthUser) {
     createdAt: asset.createdAt,
     uploadedBy: asset.uploadedBy.user.name,
     canDownload: canDownloadAsset(authUser.role, asset),
-    canRemove: manager && asset.status === "READY",
+    canRemove:
+      manager &&
+      asset.status === "READY" &&
+      projectStatus !== "COMPLETED" &&
+      asset.visibility !== "PUBLISHED",
+    canPublish:
+      manager &&
+      asset.purpose === "FINAL_DELIVERABLE" &&
+      asset.status === "READY" &&
+      projectStatus === "FINAL_DELIVERY" &&
+      asset.visibility !== "PUBLISHED",
+    isPublished:
+      asset.purpose === "FINAL_DELIVERABLE" &&
+      asset.status === "READY" &&
+      asset.visibility === "PUBLISHED",
     upload:
       activeUpload &&
       (manager || asset.uploadedByMembershipId === authUser.membershipId)
@@ -212,7 +230,9 @@ export async function listProjectFiles(authUser: AuthUser, projectId: string) {
   const storageFull = storage.remainingBytes === "0";
 
   return {
-    files: assets.map((asset) => serializeAsset(asset, authUser)),
+    files: assets.map((asset) =>
+      serializeAsset(asset, authUser, project.status),
+    ),
     uploadPurposes: allowedUploadPurposes(authUser.role),
     canUpload: !projectLocked && !storageFull,
     uploadBlockReason: projectLocked
@@ -401,7 +421,10 @@ async function getUpload(
   projectId: string,
   uploadSessionId: string,
 ) {
-  await requireProject(authUser, projectId);
+  const project = await requireProject(authUser, projectId);
+  if (project.status === "COMPLETED") {
+    throw new FileServiceError("Completed projects are locked.", 409);
+  }
   const upload = await prisma.uploadSession.findFirst({
     where: {
       id: uploadSessionId,
@@ -770,7 +793,10 @@ export async function softDeleteProjectFile(
   if (!isWorkspaceManager(authUser)) {
     throw new FileServiceError("Only workspace managers can remove files.", 403);
   }
-  await requireProject(authUser, projectId);
+  const project = await requireProject(authUser, projectId);
+  if (project.status === "COMPLETED") {
+    throw new FileServiceError("Completed projects are locked.", 409);
+  }
 
   const now = new Date();
   const purgeAfter = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1_000);
@@ -780,6 +806,7 @@ export async function softDeleteProjectFile(
       workspaceId: authUser.workspaceId,
       projectId,
       status: "READY",
+      visibility: { not: "PUBLISHED" },
       deletedAt: null,
     },
     data: { status: "DELETED", deletedAt: now, purgeAfter },
@@ -803,4 +830,142 @@ export async function softDeleteProjectFile(
   });
 
   return { deleted: true, purgeAfter };
+}
+
+export async function publishFinalDeliverable(
+  authUser: AuthUser,
+  projectId: string,
+  fileAssetId: string,
+) {
+  if (!isWorkspaceManager(authUser)) {
+    throw new FileServiceError(
+      "Only workspace managers can publish final deliverables.",
+      403,
+    );
+  }
+
+  const project = await requireProject(authUser, projectId);
+  if (project.status !== "FINAL_DELIVERY") {
+    throw new FileServiceError(
+      "Final files can be published after the client approves the review.",
+      409,
+    );
+  }
+
+  return prisma.$transaction(async (transaction) => {
+    const asset = await transaction.fileAsset.findFirst({
+      where: {
+        id: fileAssetId,
+        workspaceId: authUser.workspaceId,
+        projectId,
+        purpose: "FINAL_DELIVERABLE",
+        status: "READY",
+        deletedAt: null,
+        archivedAt: null,
+      },
+    });
+    if (!asset) {
+      throw new FileServiceError("Ready final deliverable not found.", 404);
+    }
+    if (asset.visibility === "PUBLISHED") return { published: true };
+
+    const approved = await transaction.approval.findFirst({
+      where: {
+        workspaceId: authUser.workspaceId,
+        projectId,
+        decision: "APPROVED",
+      },
+      select: { id: true },
+    });
+    if (!approved) {
+      throw new FileServiceError(
+        "A client approval is required before publishing final delivery.",
+        409,
+      );
+    }
+
+    const publishedAt = new Date();
+    await transaction.fileAsset.update({
+      where: { id: asset.id },
+      data: { visibility: "PUBLISHED", publishedAt },
+    });
+    await transaction.activity.create({
+      data: {
+        workspaceId: authUser.workspaceId,
+        projectId,
+        actorMembershipId: authUser.membershipId,
+        action: "FINAL_DELIVERABLE_PUBLISHED",
+        entityType: "FileAsset",
+        entityId: fileAssetId,
+        metadata: { publishedAt: publishedAt.toISOString() },
+        clientVisible: true,
+      },
+    });
+    return { published: true };
+  });
+}
+
+export async function completeProject(authUser: AuthUser, projectId: string) {
+  if (!isWorkspaceManager(authUser)) {
+    throw new FileServiceError(
+      "Only workspace managers can complete projects.",
+      403,
+    );
+  }
+
+  const project = await requireProject(authUser, projectId);
+  if (project.status === "COMPLETED") return { completed: true };
+  if (project.status !== "FINAL_DELIVERY") {
+    throw new FileServiceError("This project is not ready for completion.", 409);
+  }
+
+  return prisma.$transaction(async (transaction) => {
+    const publishedFinal = await transaction.fileAsset.findFirst({
+      where: {
+        workspaceId: authUser.workspaceId,
+        projectId,
+        purpose: "FINAL_DELIVERABLE",
+        status: "READY",
+        visibility: "PUBLISHED",
+        deletedAt: null,
+        archivedAt: null,
+      },
+      select: { id: true },
+    });
+    if (!publishedFinal) {
+      throw new FileServiceError(
+        "Publish at least one final deliverable before completing the project.",
+        409,
+      );
+    }
+
+    const changed = await transaction.project.updateMany({
+      where: {
+        id: projectId,
+        workspaceId: authUser.workspaceId,
+        status: "FINAL_DELIVERY",
+      },
+      data: { status: "COMPLETED" },
+    });
+    if (changed.count !== 1) {
+      throw new FileServiceError(
+        "The project status changed. Refresh and try again.",
+        409,
+      );
+    }
+
+    await transaction.activity.create({
+      data: {
+        workspaceId: authUser.workspaceId,
+        projectId,
+        actorMembershipId: authUser.membershipId,
+        action: "PROJECT_COMPLETED",
+        entityType: "Project",
+        entityId: projectId,
+        metadata: { finalDeliverableId: publishedFinal.id },
+        clientVisible: true,
+      },
+    });
+    return { completed: true };
+  });
 }

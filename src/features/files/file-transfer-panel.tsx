@@ -19,12 +19,17 @@ import {
   LockKeyhole,
   RefreshCw,
   RotateCcw,
+  Send,
   Trash2,
   Upload,
   X,
 } from "lucide-react";
 
-type UploadPurpose = "SOURCE" | "REFERENCE" | "ATTACHMENT";
+type UploadPurpose =
+  | "SOURCE"
+  | "REFERENCE"
+  | "ATTACHMENT"
+  | "FINAL_DELIVERABLE";
 
 type ProjectFile = {
   id: string;
@@ -32,7 +37,7 @@ type ProjectFile = {
   contentType: string;
   sizeBytes: string;
   kind: "VIDEO" | "AUDIO" | "IMAGE" | "DOCUMENT" | "ARCHIVE" | "OTHER";
-  purpose: UploadPurpose | "FINAL_DELIVERABLE";
+  purpose: UploadPurpose;
   visibility: "INTERNAL" | "CLIENT" | "PUBLISHED";
   status: "PENDING" | "READY" | "FAILED" | "ARCHIVED" | "DELETED";
   verifiedAt: string | null;
@@ -40,6 +45,8 @@ type ProjectFile = {
   uploadedBy: string;
   canDownload: boolean;
   canRemove: boolean;
+  canPublish: boolean;
+  isPublished: boolean;
   upload: {
     id: string;
     type: "SINGLE_PART" | "MULTIPART";
@@ -96,6 +103,7 @@ const purposeLabels: Record<UploadPurpose, string> = {
   SOURCE: "Source footage",
   REFERENCE: "Creative reference",
   ATTACHMENT: "Project attachment",
+  FINAL_DELIVERABLE: "Final deliverable",
 };
 
 function formatFileSize(value: string | number) {
@@ -515,6 +523,27 @@ export function FileTransferPanel({
     }
   }
 
+  async function publishFile(file: ProjectFile) {
+    setBusyFileId(file.id);
+    setError("");
+    try {
+      const response = await fetch(
+        `/api/projects/${projectId}/files/${file.id}/publish`,
+        { method: "POST" },
+      );
+      await responsePayload(response);
+      await loadFiles();
+    } catch (reason) {
+      setError(
+        reason instanceof Error
+          ? reason.message
+          : "The final deliverable was not published.",
+      );
+    } finally {
+      setBusyFileId(null);
+    }
+  }
+
   function chooseFile(target?: ProjectFile) {
     resumeTarget.current = target ?? null;
     inputRef.current?.click();
@@ -700,13 +729,30 @@ export function FileTransferPanel({
                 </span>
               </div>
               <span className={`asset-status status-${file.status.toLowerCase()}`}>
-                {file.status === "READY"
-                  ? "Verified"
+                {file.isPublished
+                  ? "Published"
+                  : file.status === "READY"
+                    ? "Verified"
                   : file.status === "PENDING"
                     ? "Transfer paused"
                     : "Needs attention"}
               </span>
               <div className="asset-actions">
+                {file.canPublish ? (
+                  <button
+                    className="text-button compact publish-file-button"
+                    type="button"
+                    disabled={busyFileId === file.id}
+                    onClick={() => void publishFile(file)}
+                  >
+                    {busyFileId === file.id ? (
+                      <LoaderCircle className="spin" size={14} />
+                    ) : (
+                      <Send size={14} />
+                    )}
+                    Publish to client
+                  </button>
+                ) : null}
                 {file.upload ? (
                   <button
                     className="text-button compact"

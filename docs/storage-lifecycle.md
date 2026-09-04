@@ -16,9 +16,13 @@ The private R2 bucket stores durable project files:
 - Exact originals that the workflow must retain.
 - Final/full-resolution deliverables.
 
-### Cloudflare Stream
+### Review playback (free v1)
 
-Stream stores private review playback versions that need browser-compatible playback, processing, and timestamp-based feedback. Review uploads are not copied to R2 by default. R2 is not the source for adaptive review playback, and Stream is not the canonical home for full-resolution final delivery.
+The implemented v1 reuses verified private R2 video assets for browser playback through short-lived, authorized presigned URLs. Review records, timestamped notes, and decisions stay in PostgreSQL. This keeps the working product inside the selected free infrastructure while preserving project and client authorization.
+
+### Cloudflare Stream (optional future upgrade)
+
+Stream may later store private review playback versions that need adaptive encoding or provider-side processing. It is not required by the current v1 and is not the canonical home for full-resolution final delivery.
 
 ### PostgreSQL
 

@@ -166,6 +166,27 @@ export default function ProjectDetailPage() {
     }
   }
 
+  async function handleCompleteProject() {
+    setUpdatingStatus(true);
+    setError("");
+
+    try {
+      const res = await fetch(`/api/projects/${projectId}/complete`, {
+        method: "POST",
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setError(data.error || "The project could not be completed.");
+        return;
+      }
+      await fetchProject();
+    } catch {
+      setError("Could not reach the server.");
+    } finally {
+      setUpdatingStatus(false);
+    }
+  }
+
   const handleFileCountChange = useCallback((count: number) => {
     setProject((current) => (current ? { ...current, fileCount: count } : current));
   }, []);
@@ -180,6 +201,7 @@ export default function ProjectDetailPage() {
 
   const user = { ...authContext.user, role: authContext.membership.role };
   const canEditStatus = user.role !== "CLIENT";
+  const isWorkspaceManager = user.role === "OWNER" || user.role === "ADMIN";
   const initials = getInitials(user.name);
 
   return (
@@ -307,6 +329,15 @@ export default function ProjectDetailPage() {
                     onClick={() => handleStatusChange("IN_PROGRESS")}
                   >
                     {updatingStatus ? "Starting..." : "Start production"}
+                  </button>
+                ) : project.canonicalStatus === "FINAL_DELIVERY" &&
+                  isWorkspaceManager ? (
+                  <button
+                    className="primary-button complete-project-button"
+                    disabled={updatingStatus}
+                    onClick={() => void handleCompleteProject()}
+                  >
+                    {updatingStatus ? "Completing..." : "Complete project"}
                   </button>
                 ) : (
                   <span className="project-stage-label">

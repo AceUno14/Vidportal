@@ -117,6 +117,10 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 .asset-status.status-failed { background: #f7dddb; color: #ad524d; }
 .asset-actions { display: flex; align-items: center; justify-content: flex-end; gap: 4px; }
 .asset-actions .text-button.compact { display: inline-flex; align-items: center; gap: 5px; padding: 7px; }
+.asset-actions .publish-file-button { border: 1px solid #efb2a9; border-radius: 6px; padding: 7px 9px; white-space: nowrap; }
+.asset-actions .publish-file-button:hover { background: #fff0ed; }
+.complete-project-button { background: #45694e; box-shadow: 0 2px 0 #315039; }
+.complete-project-button:hover { background: #3c6045; }
 .icon-button.danger { color: #a64b43; }
 .icon-button.danger:hover { background: #f9e5e2; color: #8f352d; }
 .asset-empty { min-height: 130px; display: flex; flex-direction: column; align-items: center; justify-content: center; color: #979991; text-align: center; }

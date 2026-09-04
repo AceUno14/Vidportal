@@ -8,7 +8,7 @@ import type { UploadPurpose } from "@/features/files/schema";
 export function allowedUploadPurposes(role: MembershipRole): UploadPurpose[] {
   return role === "CLIENT"
     ? ["SOURCE", "REFERENCE"]
-    : ["SOURCE", "REFERENCE", "ATTACHMENT"];
+    : ["SOURCE", "REFERENCE", "ATTACHMENT", "FINAL_DELIVERABLE"];
 }
 
 export function canDownloadAsset(

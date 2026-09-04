@@ -2,7 +2,7 @@
 
 VidPortal is a video-first project intake, review, feedback, and delivery portal for agencies, production houses, and freelancers.
 
-The repository contains a working prototype on the canonical workspace-scoped Prisma model with a Neon runtime adapter, Better Auth cookie sessions, a deterministic development seed, structured client intake, and an implemented direct-to-R2 file-transfer slice. Phase 3 Slice 2 has passed private-bucket connectivity, exact-origin CORS, live single-part and multipart upload lifecycles, authorized byte-for-byte download verification, paused-transfer recovery, multipart cancellation, and a configurable 8 GB storage guard. Stream review and Resend email remain later work and are not claimed as complete.
+The repository contains a working v1 on the canonical workspace-scoped Prisma model with a Neon runtime adapter, Better Auth cookie sessions, a deterministic development seed, structured client intake, direct-to-R2 file transfer, private R2 review playback, timestamped client notes, review decisions, and guarded final delivery. The free deployment path uses the existing private R2 bucket for both review and delivery; Cloudflare Stream and transactional email are optional future enhancements, not runtime requirements.
 
 ## Local setup
 
@@ -58,7 +58,7 @@ npm run test:e2e -- tests/e2e/health.spec.ts
 - `/`: agency dashboard and project creation
 - `/login`: Better Auth email/password login
 - `/clients`: client management
-- `/projects/[id]`: project detail, structured client intake, and secure project-file transfer
+- `/projects/[id]`: intake, secure file exchange, private review, decisions, and final delivery
 - `/api/health`: service health
 - `/api/auth/[...all]`: Better Auth handler
 - `/api/auth/context`: current user, membership, and workspace context
@@ -75,6 +75,8 @@ npm run test:e2e -- tests/e2e/health.spec.ts
 - `docs/phase-2-auth-foundation.md`: completed Better Auth and workspace authorization foundation
 - `docs/phase-3-slice-1-intake.md`: completed structured client-intake vertical slice
 - `docs/phase-3-slice-2-r2-files.md`: completed direct-to-R2 project-file slice, live acceptance, and storage guard
+- `docs/phase-3-slice-3-review-decisions.md`: completed free R2 review, timestamped notes, and client decisions
+- `docs/phase-3-slice-4-final-delivery.md`: completed final publication, client download, and project completion
 - `docs/architecture.md`: approved modular-monolith boundaries
 - `docs/authorization.md`: tenant, role, and resource-access rules
 - `docs/r2-cors.md`: mandatory browser-to-R2 CORS policy
