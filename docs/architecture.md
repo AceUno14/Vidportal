@@ -8,7 +8,7 @@ This document describes the architecture that Milestones 2 through 12 will imple
 
 ## 1. Architecture decision
 
-VidPortal v1 is a modular Next.js monolith backed by managed PostgreSQL. The application owns identity, authorization, project workflow, metadata, and provider coordination. Large file bytes travel directly between the browser and the appropriate Cloudflare service.
+VidPortal v1 is a modular Next.js monolith backed by managed PostgreSQL. The application owns identity, authorization, project workflow, metadata, and provider coordination. Large file bytes travel directly between the browser and the private Cloudflare R2 bucket.
 
 ```text
 Browser
@@ -17,23 +17,22 @@ Browser
   |                                                        |
   |-- presigned single/multipart file transfer --> R2      |
   |                                                        v
-  |-- authorized TUS review-video transfer -----> Stream  Next.js
+  |-- authorized private review playback <------- R2     Next.js
                                                            |-- feature services
                                                            |-- authorization
                                                            |-- provider adapters
                                                            |-- webhooks
                                                            |
                                                            +--> PostgreSQL
-                                                           +--> Resend
 ```
 
 The deployment target is:
 
-- Vercel for the Next.js application.
+- Netlify for the Next.js application.
 - Neon PostgreSQL for relational application data.
 - Cloudflare R2 for original assets, documents, and final deliverables.
 - Private Cloudflare R2 presigned playback for the free v1 review path. Cloudflare Stream remains an optional future upgrade for adaptive playback and transcoding.
-- Resend for transactional email.
+- Transactional email is an optional future enhancement; v1 has no email-provider runtime dependency.
 
 This design keeps operations manageable for one developer while preserving clean domain and infrastructure boundaries. V1 does not introduce a separate API server, job-service deployment, GraphQL layer, or microservices.
 
@@ -47,11 +46,10 @@ The browser must never receive:
 
 - Database credentials.
 - R2 access-key credentials.
-- The Cloudflare Stream API token.
-- The Resend API key.
+- Any optional future provider token.
 - Better Auth's server secret.
 
-The browser never sends a multi-gigabyte file body through a Next.js route. It sends metadata to VidPortal, receives limited provider authorization, and transfers bytes directly to R2 or Stream.
+The browser never sends a multi-gigabyte file body through a Next.js route. It sends metadata to VidPortal, receives limited provider authorization, and transfers bytes directly to R2.
 
 ### Next.js application
 
