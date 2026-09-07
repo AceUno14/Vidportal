@@ -1,22 +1,16 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
+import { FormDialog } from "../form-dialog";
 import { useRouter } from "next/navigation";
 import { authClient } from "@/lib/auth-client";
 import { useCurrentAuth } from "@/lib/current-auth";
 import {
-  Bell,
-  ChevronDown,
-  CircleHelp,
-  Clock3,
-  FileVideo,
   FolderKanban,
   LayoutDashboard,
   LogOut,
   Plus,
-  Search,
-  Settings,
-  Sparkles,
   Users,
 } from "lucide-react";
 
@@ -60,6 +54,7 @@ export default function ClientsPage() {
   const [newCompany, setNewCompany] = useState("");
   const [formError, setFormError] = useState("");
   const [creating, setCreating] = useState(false);
+  const [clientSuccess, setClientSuccess] = useState("");
 
   const [loginModalClientId, setLoginModalClientId] = useState<string | null>(null);
   const [loginPassword, setLoginPassword] = useState("");
@@ -142,6 +137,7 @@ export default function ClientsPage() {
       setNewCompany("");
       setCreating(false);
       setShowAddClient(false);
+      setClientSuccess("Client added.");
       fetchClients();
     } catch {
       setFormError("Could not reach the server. Please try again.");
@@ -189,8 +185,8 @@ export default function ClientsPage() {
 
   if (checkingAuth || !authContext) {
     return (
-      <main className="login-shell">
-        <p style={{ padding: "2rem" }}>Loading...</p>
+      <main className="page-loading">
+        <p role="status">Loading your workspace...</p>
       </main>
     );
   }
@@ -201,6 +197,7 @@ export default function ClientsPage() {
 
   return (
     <div className="app-shell">
+      <a className="skip-link" href="#main-content">Skip to content</a>
       <aside className="sidebar">
         <div className="brand">
           <div className="brand-mark">
@@ -212,47 +209,16 @@ export default function ClientsPage() {
           <div className="workspace-avatar">V</div>
           <div>
             <strong>{authContext.workspace.name}</strong>
-            <small>Agency workspace</small>
+            <small>Workspace</small>
           </div>
-          <ChevronDown size={15} />
         </div>
-        <nav className="main-nav">
+        <nav className="main-nav" aria-label="Main navigation">
           <p className="nav-label">Workspace</p>
-          <button className="nav-item" onClick={() => router.push("/")}>
-            <LayoutDashboard size={17} />
-            Overview
-          </button>
-          <button className="nav-item" onClick={() => router.push("/")}>
-            <FolderKanban size={17} />
-            Projects
-          </button>
-          <button className="nav-item active">
-            <Users size={17} />
-            Clients
-          </button>
-          <p className="nav-label nav-label-spaced">Manage</p>
-          <button className="nav-item">
-            <FileVideo size={17} />
-            Files
-          </button>
-          <button className="nav-item">
-            <Sparkles size={17} />
-            Intake forms
-          </button>
-          <button className="nav-item">
-            <Clock3 size={17} />
-            Activity
-          </button>
+          <Link href="/" className="nav-item"><LayoutDashboard size={17} />Overview</Link>
+          <Link href="/#projects" className="nav-item"><FolderKanban size={17} />Projects</Link>
+          <Link href="/clients" className="nav-item active" aria-current="page"><Users size={17} />Clients</Link>
         </nav>
         <div className="sidebar-bottom">
-          <button className="nav-item">
-            <Settings size={17} />
-            Settings
-          </button>
-          <button className="nav-item">
-            <CircleHelp size={17} />
-            Help center
-          </button>
           <div className="profile">
             <div className="profile-avatar">{initials}</div>
             <div>
@@ -266,7 +232,7 @@ export default function ClientsPage() {
         </div>
       </aside>
 
-      <main className="main-content">
+      <main className="main-content" id="main-content" tabIndex={-1}>
         <header className="topbar">
           <div className="breadcrumb">
             <span>Workspace</span>
@@ -274,20 +240,12 @@ export default function ClientsPage() {
             <strong>Clients</strong>
           </div>
           <div className="topbar-actions">
-            <div className="global-search">
-              <Search size={16} />
-              <input placeholder="Search clients..." />
-              <kbd>⌘ K</kbd>
-            </div>
-            <button className="icon-button notification-button" aria-label="Notifications">
-              <Bell size={18} />
-              <i />
-            </button>
-            <button className="avatar-button">{initials}</button>
+            <span className="avatar-button" aria-label={user.name}>{initials}</span>
           </div>
         </header>
 
         <div className="content-wrap">
+          {clientSuccess && <p className="ui-success" role="status">{clientSuccess}</p>}
           <div className="page-intro">
             <div>
               <p className="eyebrow">Workspace</p>
@@ -302,10 +260,10 @@ export default function ClientsPage() {
           </div>
 
           <section className="projects-section">
-            {loadingClients && <p style={{ padding: "1.5rem" }}>Loading your clients...</p>}
+            {loadingClients && <p className="ui-state" role="status">Loading your clients...</p>}
 
             {clientsError && (
-              <p style={{ padding: "1.5rem", color: "#991b1b" }}>{clientsError}</p>
+              <div className="ui-error" role="alert"><p>{clientsError}</p><button className="outline-button" onClick={() => void fetchClients()}>Retry clients</button></div>
             )}
 
             {!loadingClients && !clientsError && clients.length === 0 && (
@@ -320,7 +278,7 @@ export default function ClientsPage() {
             )}
 
             {!loadingClients && !clientsError && clients.length > 0 && (
-              <div className="project-table">
+              <div className="project-table client-list">
                 <div className="table-head">
                   <span>Client</span>
                   <span>Email</span>
@@ -341,9 +299,9 @@ export default function ClientsPage() {
                         <strong>{client.name}</strong>
                       </div>
                     </div>
-                    <div className="due-date">{client.email}</div>
-                    <div className="due-date">{client.company || "-"}</div>
-                    <div className="due-date">{client._count.projects}</div>
+                    <div className="due-date" data-label="Email">{client.email}</div>
+                    <div className="due-date" data-label="Company">{client.company || "Not provided"}</div>
+                    <div className="due-date" data-label="Projects">{client._count.projects}</div>
                     <div>
                       {client._count.users > 0 ? (
                         <span style={{ color: "#166534", fontSize: "0.8rem", fontWeight: 600 }}>
@@ -351,6 +309,8 @@ export default function ClientsPage() {
                         </span>
                       ) : isManager ? (
                         <button
+                          className="outline-button"
+                          aria-label={`Create login for ${client.name}`}
                           onClick={() => {
                             setLoginModalClientId(client.id);
                             setLoginError("");
@@ -381,14 +341,13 @@ export default function ClientsPage() {
       </main>
 
       {showAddClient && isManager && (
-        <div className="modal-backdrop" onClick={() => setShowAddClient(false)}>
-          <div className="modal" onClick={(event) => event.stopPropagation()}>
+        <FormDialog label="Add client" busy={creating} onClose={() => setShowAddClient(false)} onSubmit={handleCreateClient}>
             <div className="modal-header">
               <div>
                 <p className="eyebrow">New client</p>
                 <h2>Add a client</h2>
               </div>
-              <button className="icon-button" aria-label="Close" onClick={() => setShowAddClient(false)}>
+              <button className="icon-button" type="button" aria-label="Close" disabled={creating} onClick={() => setShowAddClient(false)}>
                 ×
               </button>
             </div>
@@ -397,6 +356,7 @@ export default function ClientsPage() {
             <input
               className="text-input"
               id="client-add-name"
+              required
               placeholder="e.g. Lumen Coffee"
               value={newName}
               onChange={(event) => setNewName(event.target.value)}
@@ -406,6 +366,7 @@ export default function ClientsPage() {
             <input
               className="text-input"
               id="client-add-email"
+              required
               placeholder="client@company.com"
               type="email"
               value={newEmail}
@@ -422,25 +383,23 @@ export default function ClientsPage() {
             />
 
             {formError && (
-              <p style={{ color: "#991b1b", fontSize: "0.875rem", marginTop: "0.5rem" }}>
+              <p role="alert" style={{ color: "#991b1b", fontSize: "0.875rem", marginTop: "0.5rem" }}>
                 {formError}
               </p>
             )}
 
             <button
               className="primary-button modal-submit"
-              onClick={handleCreateClient}
+              type="submit"
               disabled={creating}
             >
               {creating ? "Adding..." : "Add client"} <Plus size={16} />
             </button>
-          </div>
-        </div>
+        </FormDialog>
       )}
 
       {loginModalClientId && isManager && (
-        <div className="modal-backdrop" onClick={() => setLoginModalClientId(null)}>
-          <div className="modal" onClick={(event) => event.stopPropagation()}>
+        <FormDialog label="Create client login" busy={creatingLogin} onClose={() => setLoginModalClientId(null)} onSubmit={handleCreateLogin}>
             <div className="modal-header">
               <div>
                 <p className="eyebrow">Client portal</p>
@@ -448,7 +407,9 @@ export default function ClientsPage() {
               </div>
               <button
                 className="icon-button"
+                type="button"
                 aria-label="Close"
+                disabled={creatingLogin}
                 onClick={() => setLoginModalClientId(null)}
               >
                 ×
@@ -456,43 +417,48 @@ export default function ClientsPage() {
             </div>
 
             <p style={{ fontSize: "0.85rem", color: "#6b7280", marginBottom: "1rem" }}>
-              This sets a temporary password for the client to log in and see their own
-              projects. Share it with them securely - a proper email invite comes later.
+              The client can use this password to log in and see their projects. Share it with them securely.
             </p>
 
             <label className="field-label" htmlFor="client-login-password">
-              Temporary password
+              Password
             </label>
             <input
               className="text-input"
               id="client-login-password"
-              type="text"
+              type="password"
+              autoComplete="new-password"
+              required
+              minLength={8}
+              maxLength={128}
+              aria-describedby="client-password-help"
               placeholder="At least 8 characters"
               value={loginPassword}
               onChange={(event) => setLoginPassword(event.target.value)}
             />
 
+            <p id="client-password-help" className="field-help">Use 8–128 characters.</p>
+
             {loginError && (
-              <p style={{ color: "#991b1b", fontSize: "0.875rem", marginTop: "0.5rem" }}>
+              <p role="alert" style={{ color: "#991b1b", fontSize: "0.875rem", marginTop: "0.5rem" }}>
                 {loginError}
               </p>
             )}
 
             {loginSuccess && (
-              <p style={{ color: "#166534", fontSize: "0.875rem", marginTop: "0.5rem" }}>
+              <p role="status" style={{ color: "#166534", fontSize: "0.875rem", marginTop: "0.5rem" }}>
                 {loginSuccess}
               </p>
             )}
 
             <button
               className="primary-button modal-submit"
-              onClick={handleCreateLogin}
-              disabled={creatingLogin}
+              type="submit"
+              disabled={creatingLogin || Boolean(loginSuccess)}
             >
-              {creatingLogin ? "Creating..." : "Create login"}
+              {loginSuccess ? "Login created" : creatingLogin ? "Creating..." : "Create login"}
             </button>
-          </div>
-        </div>
+        </FormDialog>
       )}
     </div>
   );

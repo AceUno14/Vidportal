@@ -59,7 +59,7 @@ describe("R2 file-exchange vertical slice contract", () => {
     expect(serviceSource).toContain("pg_advisory_xact_lock");
     expect(serviceSource).toContain("canReserveStorage");
     expect(serviceSource).toMatch(/status:\s*\{\s*in:\s*\["PENDING",\s*"READY",\s*"ARCHIVED",\s*"DELETED"\]/);
-    expect(transferPanelSource).toContain("Private storage guard");
+    expect(transferPanelSource).toContain("Storage capacity");
     expect(transferPanelSource).toContain("used or reserved");
     expect(transferPanelSource).not.toContain("up to 50 GB");
   });

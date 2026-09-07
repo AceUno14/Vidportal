@@ -154,6 +154,7 @@ export function IntakePanel({
   if (loading) {
     return (
       <section className="intake-card intake-card-loading" aria-live="polite">
+        <span className="visually-hidden" role="status">Loading project brief...</span>
         <div className="intake-loading-line" />
         <div className="intake-loading-line short" />
       </section>
@@ -183,7 +184,7 @@ export function IntakePanel({
         <div>
           <p className="eyebrow">Project brief</p>
           <h2>No intake form attached</h2>
-          <p>Attach a published intake template before inviting the client.</p>
+          <p>No brief is available for this project.</p>
         </div>
       </section>
     );
@@ -230,7 +231,7 @@ export function IntakePanel({
             </p>
           </div>
           {isSubmitted && (
-            <div className="intake-complete-badge">
+            <div className="intake-complete-badge" role="status">
               <CheckCircle2 size={15} /> Brief sent
             </div>
           )}
@@ -256,13 +257,18 @@ export function IntakePanel({
             </footer>
           </div>
         ) : intake.canSubmit && intake.definition ? (
-          <form className="intake-form" onSubmit={handleSubmit} noValidate>
+          <form className="intake-form" onSubmit={handleSubmit} aria-busy={submitting} noValidate>
+            <p className="field-help">Fields marked * are required.</p>
             {intake.definition.fields.map((field) => (
               <div className="intake-field" key={field.key}>
                 {field.type === "checkbox" ? (
                   <label className="intake-checkbox">
                     <input
                       type="checkbox"
+                      disabled={submitting}
+                      aria-required={field.required}
+                      aria-invalid={Boolean(fieldErrors[field.key])}
+                      aria-describedby={[field.help ? `help-${field.key}` : "", fieldErrors[field.key] ? `error-${field.key}` : ""].filter(Boolean).join(" ") || undefined}
                       checked={answers[field.key] === true}
                       onChange={(event) =>
                         setAnswers((current) => ({
@@ -293,6 +299,9 @@ export function IntakePanel({
                           }))
                         }
                         aria-invalid={Boolean(fieldErrors[field.key])}
+                        aria-required={field.required}
+                        disabled={submitting}
+                        aria-describedby={[field.help ? `help-${field.key}` : "", fieldErrors[field.key] ? `error-${field.key}` : ""].filter(Boolean).join(" ") || undefined}
                       >
                         <option value="">Choose an option</option>
                         {field.options?.map((option) => (
@@ -313,6 +322,9 @@ export function IntakePanel({
                           }))
                         }
                         aria-invalid={Boolean(fieldErrors[field.key])}
+                        aria-required={field.required}
+                        disabled={submitting}
+                        aria-describedby={[field.help ? `help-${field.key}` : "", fieldErrors[field.key] ? `error-${field.key}` : ""].filter(Boolean).join(" ") || undefined}
                       />
                     ) : (
                       <textarea
@@ -332,13 +344,16 @@ export function IntakePanel({
                           }))
                         }
                         aria-invalid={Boolean(fieldErrors[field.key])}
+                        aria-required={field.required}
+                        disabled={submitting}
+                        aria-describedby={[field.help ? `help-${field.key}` : "", fieldErrors[field.key] ? `error-${field.key}` : ""].filter(Boolean).join(" ") || undefined}
                       />
                     )}
                   </>
                 )}
-                {field.help && <small>{field.help}</small>}
+                {field.help && <small id={`help-${field.key}`}>{field.help}</small>}
                 {fieldErrors[field.key] && (
-                  <p className="intake-field-error">{fieldErrors[field.key]}</p>
+                  <p id={`error-${field.key}`} className="intake-field-error">{fieldErrors[field.key]}</p>
                 )}
               </div>
             ))}

@@ -1,22 +1,15 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import Link from "next/link";
 import { useRouter, useParams } from "next/navigation";
 import { authClient } from "@/lib/auth-client";
 import { useCurrentAuth } from "@/lib/current-auth";
 import {
   ArrowLeft,
-  Bell,
-  ChevronDown,
-  CircleHelp,
-  Clock3,
-  FileVideo,
   FolderKanban,
   LayoutDashboard,
   LogOut,
-  Search,
-  Settings,
-  Sparkles,
   Users,
 } from "lucide-react";
 import { FileTransferPanel } from "@/features/files/file-transfer-panel";
@@ -98,6 +91,7 @@ export default function ProjectDetailPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [updatingStatus, setUpdatingStatus] = useState(false);
+  const [success, setSuccess] = useState("");
 
   async function fetchProject() {
     setLoading(true);
@@ -144,6 +138,8 @@ export default function ProjectDetailPage() {
 
   async function handleStatusChange(newStatus: BackendStatus) {
     setUpdatingStatus(true);
+    setError("");
+    setSuccess("");
 
     try {
       const res = await fetch("/api/projects/" + projectId, {
@@ -158,10 +154,14 @@ export default function ProjectDetailPage() {
 
       if (res.ok) {
         setProject(data.data);
+        setSuccess("Production started.");
+      } else {
+        setError(data.error || "Could not start production. Please try again.");
       }
 
       setUpdatingStatus(false);
     } catch {
+      setError("Could not reach the server. Please try again.");
       setUpdatingStatus(false);
     }
   }
@@ -180,6 +180,7 @@ export default function ProjectDetailPage() {
         return;
       }
       await fetchProject();
+      setSuccess("Project completed.");
     } catch {
       setError("Could not reach the server.");
     } finally {
@@ -193,8 +194,8 @@ export default function ProjectDetailPage() {
 
   if (checkingAuth || !authContext) {
     return (
-      <main className="login-shell">
-        <p style={{ padding: "2rem" }}>Loading...</p>
+      <main className="page-loading">
+        <p role="status">Loading your workspace...</p>
       </main>
     );
   }
@@ -206,6 +207,7 @@ export default function ProjectDetailPage() {
 
   return (
     <div className="app-shell">
+      <a className="skip-link" href="#main-content">Skip to content</a>
       <aside className="sidebar">
         <div className="brand">
           <div className="brand-mark">
@@ -217,47 +219,16 @@ export default function ProjectDetailPage() {
           <div className="workspace-avatar">V</div>
           <div>
             <strong>{authContext.workspace.name}</strong>
-            <small>Agency workspace</small>
+            <small>Workspace</small>
           </div>
-          <ChevronDown size={15} />
         </div>
-        <nav className="main-nav">
+        <nav className="main-nav" aria-label="Main navigation">
           <p className="nav-label">Workspace</p>
-          <button className="nav-item" onClick={() => router.push("/")}>
-            <LayoutDashboard size={17} />
-            Overview
-          </button>
-          <button className="nav-item active">
-            <FolderKanban size={17} />
-            Projects
-          </button>
-          <button className="nav-item" onClick={() => router.push("/clients")}>
-            <Users size={17} />
-            Clients
-          </button>
-          <p className="nav-label nav-label-spaced">Manage</p>
-          <button className="nav-item">
-            <FileVideo size={17} />
-            Files
-          </button>
-          <button className="nav-item">
-            <Sparkles size={17} />
-            Intake forms
-          </button>
-          <button className="nav-item">
-            <Clock3 size={17} />
-            Activity
-          </button>
+          <Link href="/" className="nav-item"><LayoutDashboard size={17} />Overview</Link>
+          <Link href="/#projects" className="nav-item active" aria-current="location"><FolderKanban size={17} />Projects</Link>
+          <Link href="/clients" className="nav-item"><Users size={17} />Clients</Link>
         </nav>
         <div className="sidebar-bottom">
-          <button className="nav-item">
-            <Settings size={17} />
-            Settings
-          </button>
-          <button className="nav-item">
-            <CircleHelp size={17} />
-            Help center
-          </button>
           <div className="profile">
             <div className="profile-avatar">{initials}</div>
             <div>
@@ -271,25 +242,17 @@ export default function ProjectDetailPage() {
         </div>
       </aside>
 
-      <main className="main-content">
+      <main className="main-content" id="main-content" tabIndex={-1}>
         <header className="topbar">
           <div className="breadcrumb">
             <span>Workspace</span>
             <span>/</span>
             <span>Projects</span>
             <span>/</span>
-            <strong>{project ? project.name : "..."}</strong>
+            <strong>{project ? project.name : "Project"}</strong>
           </div>
           <div className="topbar-actions">
-            <div className="global-search">
-              <Search size={16} />
-              <input placeholder="Search..." disabled />
-            </div>
-            <button className="icon-button notification-button" aria-label="Notifications">
-              <Bell size={18} />
-              <i />
-            </button>
-            <button className="avatar-button">{initials}</button>
+            <span className="avatar-button" aria-label={user.name}>{initials}</span>
           </div>
         </header>
 
@@ -311,10 +274,11 @@ export default function ProjectDetailPage() {
             <ArrowLeft size={16} /> Back to dashboard
           </button>
 
-          {loading && <p>Loading project...</p>}
-          {error && <p style={{ color: "#991b1b" }}>{error}</p>}
+          {loading && <p className="ui-state" role="status">Loading project...</p>}
+          {error && <div className="ui-error" role="alert"><p>{error}</p>{!project && <button className="outline-button" onClick={() => void fetchProject()}>Retry project</button>}</div>}
+          {success && <p className="ui-success" role="status">{success}</p>}
 
-          {!loading && !error && project && (
+          {!loading && project && (
             <div>
               <div className="page-intro">
                 <div>
@@ -346,7 +310,7 @@ export default function ProjectDetailPage() {
                 )}
               </div>
 
-              <section className="metric-grid">
+              <section className="metric-grid project-summary">
                 <div className="metric-card">
                   <p>Client</p>
                   <strong style={{ fontSize: "1.1rem" }}>{project.client.name}</strong>
@@ -356,10 +320,7 @@ export default function ProjectDetailPage() {
                   <p>Delivery date</p>
                   <strong style={{ fontSize: "1.1rem" }}>{formatDate(project.deliveryDate)}</strong>
                 </div>
-                <div className="metric-card">
-                  <p>Budget</p>
-                  <strong style={{ fontSize: "1.1rem" }}>{formatMoney(project.budgetCents)}</strong>
-                </div>
+                {project.budgetCents !== null && <div className="metric-card"><p>Budget</p><strong style={{ fontSize: "1.1rem" }}>{formatMoney(project.budgetCents)}</strong></div>}
                 <div className="metric-card">
                   <p>Files</p>
                   <strong style={{ fontSize: "1.1rem" }}>{project.fileCount}</strong>

@@ -189,6 +189,7 @@ export function FileTransferPanel({
   const [purpose, setPurpose] = useState<UploadPurpose>("SOURCE");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [notice, setNotice] = useState("");
   const [dragging, setDragging] = useState(false);
   const [transfer, setTransfer] = useState<TransferState | null>(null);
   const [busyFileId, setBusyFileId] = useState<string | null>(null);
@@ -415,6 +416,7 @@ export function FileTransferPanel({
   async function handleFile(file: File) {
     if (transfer) return;
     setError("");
+    setNotice("");
 
     try {
       const target = resumeTarget.current;
@@ -436,15 +438,16 @@ export function FileTransferPanel({
           : current,
       );
       await loadFiles();
+      setNotice("File uploaded and verified.");
       setTimeout(() => setTransfer(null), 900);
     } catch (reason) {
+      await loadFiles();
       if (!cancelRequested.current) {
         setError(
           reason instanceof Error ? reason.message : "The transfer failed.",
         );
       }
       setTransfer(null);
-      await loadFiles();
     } finally {
       xhrRef.current = null;
       if (inputRef.current) inputRef.current.value = "";
@@ -507,6 +510,7 @@ export function FileTransferPanel({
 
     setBusyFileId(file.id);
     setError("");
+    setNotice("");
     try {
       const response = await fetch(
         `/api/projects/${projectId}/files/${file.id}`,
@@ -514,6 +518,7 @@ export function FileTransferPanel({
       );
       await responsePayload(response);
       await loadFiles();
+      setNotice("File removed.");
     } catch (reason) {
       setError(
         reason instanceof Error ? reason.message : "The file was not removed.",
@@ -526,6 +531,7 @@ export function FileTransferPanel({
   async function publishFile(file: ProjectFile) {
     setBusyFileId(file.id);
     setError("");
+    setNotice("");
     try {
       const response = await fetch(
         `/api/projects/${projectId}/files/${file.id}/publish`,
@@ -533,6 +539,7 @@ export function FileTransferPanel({
       );
       await responsePayload(response);
       await loadFiles();
+      setNotice("Final deliverable published to the client.");
     } catch (reason) {
       setError(
         reason instanceof Error
@@ -579,6 +586,8 @@ export function FileTransferPanel({
         ref={inputRef}
         className="visually-hidden"
         type="file"
+        aria-label="Choose a project file"
+        tabIndex={-1}
         onChange={(event) => {
           const file = event.target.files?.[0];
           if (file) void handleFile(file);
@@ -588,7 +597,7 @@ export function FileTransferPanel({
       {data ? (
         <div className="storage-guard">
           <div className="storage-guard-copy">
-            <span>Private storage guard</span>
+            <span>Storage capacity</span>
             <strong>{formatStorageSize(data.storage.remainingBytes)} available</strong>
           </div>
           <div className="storage-guard-meter">
@@ -623,7 +632,7 @@ export function FileTransferPanel({
           <div className="runway-progress-copy">
             <strong>{transfer.filename}</strong>
             <span>{transfer.message}</span>
-            <div className="runway-track" aria-label={`${transfer.progress}% uploaded`}>
+            <div className="runway-track" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={transfer.progress} aria-label="File upload">
               <i style={{ width: `${transfer.progress}%` }} />
             </div>
           </div>
@@ -693,6 +702,7 @@ export function FileTransferPanel({
         </div>
       )}
 
+      {notice && <p className="ui-success" role="status">{notice}</p>}
       {error && (
         <div className="transfer-error" role="alert">
           <span>{error}</span>
@@ -713,8 +723,8 @@ export function FileTransferPanel({
         ) : !data?.files.length ? (
           <div className="asset-empty">
             <Film size={22} />
-            <strong>No project files yet</strong>
-            <span>Add the first source, reference, or attachment above.</span>
+            <strong>{data ? "No project files yet" : "Files unavailable"}</strong>
+            <span>{!data ? "Retry to load this project’s files." : data.canUpload ? "Choose a file above to add it to this project." : "Files shared with you will appear here."}</span>
           </div>
         ) : (
           data.files.map((file) => (

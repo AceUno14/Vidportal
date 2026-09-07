@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { authClient } from "@/lib/auth-client";
 
@@ -38,29 +39,14 @@ export default function LoginPage() {
   }
 
   return (
-    <div
-      style={{
-        minHeight: "100vh",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        background: "#f5f5f4",
-      }}
-    >
-      <form
-        onSubmit={handleSubmit}
-        style={{
-          background: "white",
-          padding: "2rem",
-          borderRadius: "12px",
-          width: "320px",
-          boxShadow: "0 1px 3px rgba(0,0,0,0.1)",
-        }}
-      >
+    <main className="auth-shell">
+      <form className="auth-card" onSubmit={handleSubmit} aria-busy={loading}>
+        <p className="eyebrow">VIDPORTAL</p>
         <h1 style={{ fontSize: "1.5rem", marginBottom: "1.5rem" }}>Log in to VidPortal</h1>
 
         {error && (
           <div
+            role="alert"
             style={{
               background: "#fee2e2",
               color: "#991b1b",
@@ -74,10 +60,12 @@ export default function LoginPage() {
           </div>
         )}
 
-        <label style={{ display: "block", fontSize: "0.875rem", marginBottom: "0.25rem" }}>
+        <label htmlFor="login-email" className="field-label">
           Email
         </label>
         <input
+          id="login-email"
+          autoComplete="email"
           type="email"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
@@ -91,10 +79,12 @@ export default function LoginPage() {
           }}
         />
 
-        <label style={{ display: "block", fontSize: "0.875rem", marginBottom: "0.25rem" }}>
+        <label htmlFor="login-password" className="field-label">
           Password
         </label>
         <input
+          id="login-password"
+          autoComplete="current-password"
           type="password"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
@@ -109,22 +99,35 @@ export default function LoginPage() {
         />
 
         <button
+          className="primary-button auth-submit"
           type="submit"
           disabled={loading}
           style={{
             width: "100%",
             padding: "0.6rem",
-            background: "#f06e5b",
             color: "white",
             border: "none",
             borderRadius: "8px",
             fontWeight: 600,
-            cursor: "pointer",
           }}
         >
           {loading ? "Logging in..." : "Log in"}
         </button>
+
+        <p
+          style={{
+            marginTop: "1.25rem",
+            textAlign: "center",
+            color: "#57534e",
+            fontSize: "0.875rem",
+          }}
+        >
+          New to VidPortal?{" "}
+          <Link href="/register" style={{ color: "#c84f40", fontWeight: 600 }}>
+            Create an account
+          </Link>
+        </p>
       </form>
-    </div>
+    </main>
   );
 }

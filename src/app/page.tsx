@@ -1,26 +1,19 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
+import { FormDialog } from "./form-dialog";
 import { useRouter } from "next/navigation";
 import { authClient } from "@/lib/auth-client";
 import { useCurrentAuth } from "@/lib/current-auth";
 import {
-  Bell,
   Check,
-  ChevronDown,
-  CircleHelp,
   Clock3,
-  FileVideo,
-  Filter,
   FolderKanban,
-  Grid2X2,
   LayoutDashboard,
-  List,
   LogOut,
-  MoreHorizontal,
   Plus,
   Search,
-  Settings,
   Sparkles,
   Users,
 } from "lucide-react";
@@ -61,14 +54,6 @@ const statusStyles: Record<BackendStatus, string> = {
   COMPLETED: "status-delivery",
 };
 
-const statusProgress: Record<BackendStatus, number> = {
-  BRIEFING: 10,
-  IN_PROGRESS: 45,
-  CLIENT_REVIEW: 70,
-  REVISIONS: 60,
-  FINAL_DELIVERY: 90,
-  COMPLETED: 100,
-};
 
 const avatarColors = ["#f3b562", "#b6c9b9", "#c7b6dd", "#e7a7a1", "#a7c7e7"];
 
@@ -93,7 +78,6 @@ function formatDate(dateString: string | null) {
 export default function Home() {
   const router = useRouter();
   const { data: authContext, isPending: checkingAuth } = useCurrentAuth();
-  const [activeNav, setActiveNav] = useState("Overview");
   const [query, setQuery] = useState("");
   const [showAll, setShowAll] = useState(false);
   const [showNewProject, setShowNewProject] = useState(false);
@@ -218,8 +202,8 @@ export default function Home() {
 
   if (checkingAuth || !authContext) {
     return (
-      <main className="login-shell">
-        <p style={{ padding: "2rem" }}>Loading...</p>
+      <main className="page-loading">
+        <p role="status">Loading your workspace...</p>
       </main>
     );
   }
@@ -232,6 +216,7 @@ export default function Home() {
 
   return (
     <div className="app-shell">
+      <a className="skip-link" href="#main-content">Skip to content</a>
       <aside className="sidebar">
         <div className="brand">
           <div className="brand-mark">
@@ -243,54 +228,16 @@ export default function Home() {
           <div className="workspace-avatar">V</div>
           <div>
             <strong>{authContext.workspace.name}</strong>
-            <small>Agency workspace</small>
+            <small>Workspace</small>
           </div>
-          <ChevronDown size={15} />
         </div>
-        <nav className="main-nav">
+        <nav className="main-nav" aria-label="Main navigation">
           <p className="nav-label">Workspace</p>
-          {[[LayoutDashboard, "Overview"], [FolderKanban, "Projects"], [Users, "Clients"]].map(
-            ([Icon, label]) => (
-              <button
-                className={activeNav === label ? "nav-item active" : "nav-item"}
-                key={label as string}
-                onClick={() => {
-                  if (label === "Clients") {
-                    router.push("/clients");
-                  } else {
-                    setActiveNav(label as string);
-                  }
-                }}
-              >
-                <Icon size={17} />
-                {label as string}
-                {label === "Projects" && <span className="nav-count">{realProjects.length}</span>}
-              </button>
-            )
-          )}
-          <p className="nav-label nav-label-spaced">Manage</p>
-          {[[FileVideo, "Files"], [Sparkles, "Intake forms"], [Clock3, "Activity"]].map(
-            ([Icon, label]) => (
-              <button
-                className={activeNav === label ? "nav-item active" : "nav-item"}
-                key={label as string}
-                onClick={() => setActiveNav(label as string)}
-              >
-                <Icon size={17} />
-                {label as string}
-              </button>
-            )
-          )}
+          <Link href="/" className="nav-item active" aria-current="page"><LayoutDashboard size={17} />Overview</Link>
+          <Link href="/#projects" className="nav-item"><FolderKanban size={17} />Projects</Link>
+          <Link href="/clients" className="nav-item"><Users size={17} />Clients</Link>
         </nav>
         <div className="sidebar-bottom">
-          <button className="nav-item">
-            <Settings size={17} />
-            Settings
-          </button>
-          <button className="nav-item">
-            <CircleHelp size={17} />
-            Help center
-          </button>
           <div className="profile">
             <div className="profile-avatar">{initials}</div>
             <div>
@@ -304,12 +251,12 @@ export default function Home() {
         </div>
       </aside>
 
-      <main className="main-content">
+      <main className="main-content" id="main-content" tabIndex={-1}>
         <header className="topbar">
           <div className="breadcrumb">
             <span>Workspace</span>
             <span>/</span>
-            <strong>{activeNav}</strong>
+            <strong>Overview</strong>
           </div>
           <div className="topbar-actions">
             <div className="global-search">
@@ -317,21 +264,19 @@ export default function Home() {
               <input
                 value={query}
                 onChange={(event) => setQuery(event.target.value)}
+                type="search"
+                aria-label="Search projects"
                 placeholder="Search projects..."
               />
-              <kbd>⌘ K</kbd>
             </div>
-            <button className="icon-button notification-button" aria-label="Notifications">
-              <Bell size={18} />
-              <i />
-            </button>
-            <button className="avatar-button">{initials}</button>
+            <span className="avatar-button" aria-label={user.name}>{initials}</span>
           </div>
         </header>
 
         <div className="content-wrap">
           {lastCreated && (
             <div
+              role="status"
               style={{
                 background: "#dcfce7",
                 color: "#166534",
@@ -341,7 +286,7 @@ export default function Home() {
                 fontSize: "0.875rem",
               }}
             >
-              ✅ &quot;{lastCreated.name}&quot; was created for {lastCreated.client} and saved to your database.
+              &quot;{lastCreated.name}&quot; was created for {lastCreated.client}.
             </div>
           )}
 
@@ -369,59 +314,44 @@ export default function Home() {
               <div className="metric-icon">
                 <FolderKanban size={18} />
               </div>
-              <p>Active projects</p>
-              <strong>{realProjects.length}</strong>
-              <span className="metric-trend">Real data from your database</span>
+              <p>Total projects</p>
+              <strong>{loadingProjects || projectsError ? "—" : realProjects.length}</strong>
             </div>
             <div className="metric-card">
               <div className="metric-icon metric-coral">
                 <Check size={18} />
               </div>
-              <p>Awaiting your review</p>
-              <strong>{realProjects.filter((p) => p.status === "CLIENT_REVIEW").length}</strong>
-              <span className="metric-trend">Based on status</span>
+              <p>Client review</p>
+              <strong>{loadingProjects || projectsError ? "—" : realProjects.filter((p) => p.status === "CLIENT_REVIEW").length}</strong>
             </div>
             <div className="metric-card">
               <div className="metric-icon metric-yellow">
                 <Clock3 size={18} />
               </div>
               <p>In progress</p>
-              <strong>{realProjects.filter((p) => p.status === "IN_PROGRESS").length}</strong>
-              <span className="metric-trend">Based on status</span>
+              <strong>{loadingProjects || projectsError ? "—" : realProjects.filter((p) => p.status === "IN_PROGRESS").length}</strong>
             </div>
             <div className="metric-card">
               <div className="metric-icon metric-green">
                 <Sparkles size={18} />
               </div>
               <p>Completed</p>
-              <strong>{realProjects.filter((p) => p.status === "COMPLETED").length}</strong>
-              <span className="metric-trend">Based on status</span>
+              <strong>{loadingProjects || projectsError ? "—" : realProjects.filter((p) => p.status === "COMPLETED").length}</strong>
             </div>
           </section>
 
-          <section className="projects-section">
+          <section className="projects-section" id="projects" aria-label="Projects">
             <div className="section-heading">
               <div>
                 <h2>Recent projects</h2>
                 <p>Your team&apos;s latest work at a glance.</p>
               </div>
-              <div className="view-actions">
-                <button className="filter-button">
-                  <Filter size={15} /> Filter
-                </button>
-                <button className={showAll ? "view-button active" : "view-button"} aria-label="List view">
-                  <List size={17} />
-                </button>
-                <button className={!showAll ? "view-button active" : "view-button"} aria-label="Grid view">
-                  <Grid2X2 size={16} />
-                </button>
-              </div>
             </div>
 
-            {loadingProjects && <p style={{ padding: "1.5rem" }}>Loading your projects...</p>}
+            {loadingProjects && <p role="status" className="ui-state">Loading your projects...</p>}
 
             {projectsError && (
-              <p style={{ padding: "1.5rem", color: "#991b1b" }}>{projectsError}</p>
+              <div className="ui-error" role="alert"><p>{projectsError}</p><button className="outline-button" onClick={() => void fetchProjects()}>Retry projects</button></div>
             )}
 
             {!loadingProjects && !projectsError && realProjects.length === 0 && (
@@ -435,25 +365,19 @@ export default function Home() {
               </div>
             )}
 
-            {!loadingProjects && !projectsError && realProjects.length > 0 && (
+            {!loadingProjects && !projectsError && realProjects.length > 0 && filteredProjects.length === 0 && <div className="ui-state" role="status"><h3>No matching projects</h3><p>Try a different project or client name.</p><button className="text-button" onClick={() => setQuery("")}>Clear search</button></div>}
+
+            {!loadingProjects && !projectsError && filteredProjects.length > 0 && (
               <>
-                <div className="project-table">
+                <div className="project-table project-list">
                   <div className="table-head">
                     <span>Project</span>
                     <span>Status</span>
                     <span>Due date</span>
-                    <span>Progress</span>
-                    <span />
                   </div>
                   {visibleProjects.map((project, index) => {
-                    const progress = statusProgress[project.status];
                     return (
-                      <div
-                        className="project-row"
-                        key={project.id}
-                        onClick={() => router.push(`/projects/${project.id}`)}
-                        style={{ cursor: "pointer" }}
-                      >
+                      <Link className="project-row" key={project.id} href={`/projects/${project.id}`}>
                         <div className="project-cell">
                           <div
                             className="client-avatar"
@@ -476,20 +400,7 @@ export default function Home() {
                           </span>
                         </div>
                         <div className="due-date">{formatDate(project.deliveryDate)}</div>
-                        <div className="progress-cell">
-                          <div className="progress-track">
-                            <i style={{ width: `${progress}%` }} />
-                          </div>
-                          <span>{progress}%</span>
-                        </div>
-                        <button
-                          className="icon-button"
-                          aria-label={`More options for ${project.name}`}
-                          onClick={(event) => event.stopPropagation()}
-                        >
-                          <MoreHorizontal size={18} />
-                        </button>
-                      </div>
+                      </Link>
                     );
                   })}
                 </div>
@@ -502,46 +413,17 @@ export default function Home() {
             )}
           </section>
 
-          <section className="bottom-grid">
-            <div className="activity-panel">
-              <div className="section-heading">
-                <div>
-                  <h2>Latest activity</h2>
-                  <p>Recent updates from your workspace.</p>
-                </div>
-                <button className="text-button">
-                  View activity <span>→</span>
-                </button>
-              </div>
-              <p style={{ padding: "1rem 0", color: "#6b7280", fontSize: "0.875rem" }}>
-                Activity tracking isn&apos;t built yet — coming soon.
-              </p>
-            </div>
-            <div className="invite-panel">
-              <div className="invite-art">
-                <div className="invite-shape shape-one" />
-                <div className="invite-shape shape-two" />
-                <Users size={25} />
-              </div>
-              <h2>Bring your team in.</h2>
-              <p>Invite teammates and clients to keep every project in sync.</p>
-              <button className="outline-button">
-                <Users size={16} /> Invite people
-              </button>
-            </div>
-          </section>
         </div>
       </main>
 
       {showNewProject && isManager && (
-        <div className="modal-backdrop" onClick={() => setShowNewProject(false)}>
-          <div className="modal" onClick={(event) => event.stopPropagation()}>
+        <FormDialog label="Create project" busy={creatingProject} onClose={() => setShowNewProject(false)} onSubmit={handleCreateProject}>
             <div className="modal-header">
               <div>
                 <p className="eyebrow">Project intake</p>
                 <h2>Start something new</h2>
               </div>
-              <button className="icon-button" aria-label="Close" onClick={() => setShowNewProject(false)}>
+              <button className="icon-button" type="button" aria-label="Close" disabled={creatingProject} onClick={() => setShowNewProject(false)}>
                 ×
               </button>
             </div>
@@ -550,6 +432,7 @@ export default function Home() {
             <input
               className="text-input"
               id="project-name"
+              required
               placeholder="e.g. Autumn campaign"
               value={newProjectName}
               onChange={(event) => setNewProjectName(event.target.value)}
@@ -559,6 +442,7 @@ export default function Home() {
             <input
               className="text-input"
               id="client-name"
+              required
               placeholder="e.g. Lumen Coffee"
               value={newClientName}
               onChange={(event) => setNewClientName(event.target.value)}
@@ -568,6 +452,7 @@ export default function Home() {
             <input
               className="text-input"
               id="client-email"
+              required
               placeholder="client@company.com"
               type="email"
               value={newClientEmail}
@@ -575,20 +460,19 @@ export default function Home() {
             />
 
             {projectError && (
-              <p style={{ color: "#991b1b", fontSize: "0.875rem", marginTop: "0.5rem" }}>
+              <p role="alert" style={{ color: "#991b1b", fontSize: "0.875rem", marginTop: "0.5rem" }}>
                 {projectError}
               </p>
             )}
 
             <button
               className="primary-button modal-submit"
-              onClick={handleCreateProject}
+              type="submit"
               disabled={creatingProject}
             >
               {creatingProject ? "Creating..." : "Create project"} <Plus size={16} />
             </button>
-          </div>
-        </div>
+        </FormDialog>
       )}
     </div>
   );

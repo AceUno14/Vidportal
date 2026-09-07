@@ -34,6 +34,7 @@ const expectedRoutes = [
   "/clients",
   "/login",
   "/projects/[id]",
+  "/register",
 ].sort();
 
 function routePath(relativeDirectory: string) {
@@ -77,6 +78,6 @@ describe("Next.js route inventory", () => {
     const routes = (await discoverRoutes(appDirectory)).sort();
 
     expect(routes).toEqual(expectedRoutes);
-    expect(new Set(routes).size).toBe(27);
+    expect(new Set(routes).size).toBe(28);
   });
 });

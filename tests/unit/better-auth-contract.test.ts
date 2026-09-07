@@ -26,6 +26,7 @@ describe("Better Auth foundation contract", () => {
       source("src/app/clients/page.tsx"),
       source("src/app/projects/[id]/page.tsx"),
       source("src/app/login/page.tsx"),
+      source("src/app/register/page.tsx"),
     ]);
     const combined = clientSources.join("\n");
 
@@ -35,6 +36,21 @@ describe("Better Auth foundation contract", () => {
     expect(combined).not.toMatch(/\/api\/auth\/login/);
     expect(combined).toMatch(/authClient\.signIn\.email/);
     expect(combined).toMatch(/useCurrentAuth/);
+  });
+
+  it("offers workspace-aware registration without using Better Auth public signup", async () => {
+    const [loginPage, registerPage, signupRoute] = await Promise.all([
+      source("src/app/login/page.tsx"),
+      source("src/app/register/page.tsx"),
+      source("src/app/api/auth/signup/route.ts"),
+    ]);
+
+    expect(loginPage).toContain('href="/register"');
+    expect(registerPage).toContain('fetch("/api/auth/signup"');
+    expect(registerPage).toMatch(/name, agencyName, email, password/);
+    expect(registerPage).toContain('router.replace("/")');
+    expect(signupRoute).toMatch(/transaction\.workspace\.create/);
+    expect(signupRoute).toMatch(/role:\s*"OWNER"/);
   });
 
   it("keeps workspace selection on the server session", async () => {
