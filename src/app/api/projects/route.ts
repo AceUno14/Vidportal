@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
+import type { Prisma } from "@/generated/prisma/client";
+import { clientVisibleFileAssetWhere } from "@/features/files/policy";
 import { prisma } from "@/lib/prisma";
 import {
   toLegacyClient,
@@ -19,6 +21,22 @@ const createProjectSchema = z.object({
   clientEmail: z.email().transform((email) => email.toLowerCase()),
 });
 
+/**
+ * Only the fields the project-list file DTO needs. storageKey is deliberately
+ * excluded so the raw storage location never leaves the server through this
+ * route.
+ */
+const projectListFileAssetSelect = {
+  id: true,
+  projectId: true,
+  originalFilename: true,
+  contentType: true,
+  kind: true,
+  sizeBytes: true,
+  durationSeconds: true,
+  createdAt: true,
+} satisfies Prisma.FileAssetSelect;
+
 export async function GET(request: Request) {
   const authUser = await getAuthUserFromRequest(request);
 
@@ -26,9 +44,23 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
 
+  // Nested file visibility is authorized at the Prisma level: CLIENT users only
+  // receive published final deliverables plus their own eligible SOURCE and
+  // REFERENCE uploads, matching the dedicated file-list service. Workspace
+  // managers and assigned members keep their existing project file list.
   const projects = await prisma.project.findMany({
     where: projectWhereForAuth(authUser),
-    include: { client: true, fileAssets: true },
+    include: {
+      client: true,
+      fileAssets: {
+        where:
+          authUser.role === "CLIENT"
+            ? clientVisibleFileAssetWhere(authUser.membershipId)
+            : undefined,
+        select: projectListFileAssetSelect,
+        orderBy: { createdAt: "desc" },
+      },
+    },
     orderBy: { createdAt: "desc" },
   });
 

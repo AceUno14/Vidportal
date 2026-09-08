@@ -45,7 +45,6 @@ type FileAssetForPrototype = {
   id: string;
   projectId: string;
   originalFilename: string;
-  storageKey: string;
   contentType: string;
   kind: "VIDEO" | "AUDIO" | "IMAGE" | "DOCUMENT" | "ARCHIVE" | "OTHER";
   sizeBytes: bigint;
@@ -58,7 +57,6 @@ export function toLegacyFileAsset(file: FileAssetForPrototype) {
     id: file.id,
     projectId: file.projectId,
     name: file.originalFilename,
-    storageKey: file.storageKey,
     mimeType: file.contentType,
     kind: file.kind,
     sizeBytes: file.sizeBytes.toString(),

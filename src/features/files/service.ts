@@ -10,6 +10,7 @@ import {
   allowedUploadPurposes,
   buildStorageKey,
   canDownloadAsset,
+  clientVisibleFileAssetWhere,
 } from "@/features/files/policy";
 import type { FileStorageProvider } from "@/features/files/provider";
 import { getR2StorageProvider } from "@/features/files/r2-provider";
@@ -177,20 +178,7 @@ function assetVisibilityWhere(
     return { status: { notIn: ["DELETED", "ARCHIVED"] } };
   }
 
-  return {
-    OR: [
-      {
-        status: "READY",
-        visibility: "PUBLISHED",
-        purpose: "FINAL_DELIVERABLE",
-      },
-      {
-        uploadedByMembershipId: authUser.membershipId,
-        purpose: { in: ["SOURCE", "REFERENCE"] },
-        status: { notIn: ["DELETED", "ARCHIVED"] },
-      },
-    ],
-  };
+  return clientVisibleFileAssetWhere(authUser.membershipId);
 }
 
 async function requireProject(authUser: AuthUser, projectId: string) {
