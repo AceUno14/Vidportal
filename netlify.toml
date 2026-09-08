@@ -1,0 +1,9 @@
+[build]
+  command = "npm run build"
+  publish = ".next"
+
+[build.environment]
+  NODE_VERSION = "22"
+
+# Set secrets in Netlify environment settings, including function runtime scope.
+# Database migrations are a separate, reviewed release step; never run them here.

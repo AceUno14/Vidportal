@@ -97,15 +97,16 @@ beforeAll(async () => {
   ]);
 });
 
-describe("Prisma 7 database foundation", () => {
-  it("uses the generated Prisma client and PostgreSQL boundaries", () => {
+describe("Prisma database foundation", () => {
+  it("uses the Workers-safe generated Prisma client and PostgreSQL boundaries", () => {
     const generator = normalized(block("generator", "client"));
     const datasource = normalized(block("datasource", "db"));
 
-    expect(generator).toContain('provider = "prisma-client"');
+    expect(generator).toContain('provider = "prisma-client-js"');
     expect(generator).toContain('output = "../src/generated/prisma"');
+    expect(generator).toContain('engineType = "client"');
     expect(datasource).toContain('provider = "postgresql"');
-    expect(datasource).not.toMatch(/\burl\s*=/);
+    expect(datasource).toContain('url = env("DATABASE_URL")');
     expect(prismaConfig).toMatch(/\bDIRECT_URL\b/);
   });
 
