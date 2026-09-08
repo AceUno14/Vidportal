@@ -33,7 +33,17 @@ export async function POST(request: Request) {
   }
 
   const { name, email, password, agencyName } = parsed.data;
-  const existingUser = await prisma.user.findUnique({ where: { email } });
+  let existingUser;
+
+  try {
+    existingUser = await prisma.user.findUnique({ where: { email } });
+  } catch (error) {
+    console.error("[signup] Could not check for an existing account", error);
+    return NextResponse.json(
+      { error: "Could not create your account. Please try again." },
+      { status: 500 },
+    );
+  }
 
   if (existingUser) {
     return NextResponse.json(
