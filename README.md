@@ -53,10 +53,15 @@ npm run test:e2e -- tests/e2e/health.spec.ts
 
 `npm run check` runs lint, TypeScript, Prisma validation, unit/integration tests, and a production build. The Playwright foundation smoke test starts or reuses the application server and verifies `/api/health` without requiring browser binaries.
 
+## Production deployment
+
+See [Deployment instructions](docs/deployment.md) for the Netlify settings, required environment variable names, database migration gate, production origin and auth configuration, R2 checks, and release verification. `netlify.toml` sets Node.js 22, `npm run build`, and `.next`; secrets must be configured separately in Netlify. Do not seed production or run development migration/reset commands against it.
+
 ## Current prototype routes
 
 - `/`: agency dashboard and project creation
 - `/login`: Better Auth email/password login
+- `/register`: workspace-owner registration
 - `/clients`: client management
 - `/projects/[id]`: intake, secure file exchange, private review, decisions, and final delivery
 - `/api/health`: service health
