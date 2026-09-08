@@ -57,3 +57,6 @@ public/uploads/
 
 # local review archives
 /vidportal-review.zip
+
+# local editor settings
+/.vscode/
